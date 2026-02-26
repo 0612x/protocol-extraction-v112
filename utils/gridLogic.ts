@@ -1,5 +1,5 @@
 
-import { GridItem } from '../types';
+import { GridItem, GridContext } from '../types';
 import { EQUIPMENT_ROW_COUNT } from '../constants';
 
 export const rotateMatrix = (matrix: number[][]): number[][] => {
@@ -38,7 +38,8 @@ export const canPlaceItem = (
   item: GridItem,
   gridX: number,
   gridY: number,
-  unlockedRows?: number
+  unlockedRows?: number,
+  context?: GridContext
 ): boolean => {
   const shape = getRotatedShape(item);
   if (shape.length === 0) return false;
@@ -50,9 +51,9 @@ export const canPlaceItem = (
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
 
- // Zone Boundary Check
-  const isWarehouse = gridHeight >= 14;
-  const isPlayerInventory = !isWarehouse; // 核心修复：不依赖高度等于5，防止旧数据缓存导致判定失效
+  // 智能推断：只有明确是素体/本体，或者未传参且高度正好为5才检查区域限制。仓库彻底解放！
+  const isPlayerInventory = context ? (context === 'AGENT' || context === 'COMMANDER') : (gridHeight === 5);
+  const isCommander = context === 'COMMANDER';
   let firstBlockZone: 'SAFE' | 'EQUIP' | 'BACKPACK' | null = null;
 
   for (let r = 0; r < rows; r++) {
@@ -69,13 +70,13 @@ export const canPlaceItem = (
           return false;
         }
 
-        // 2. Strict Zone Crossing Check (Player Inventory Only)
+        // 2. 仅对玩家背包进行跨区限制检查
         if (isPlayerInventory) {
-            const currentCellZone = getPlayerZone(targetX, targetY);
+            const currentCellZone = getPlayerZone(targetX, targetY, isCommander ? 0 : 1);
             if (!firstBlockZone) {
                 firstBlockZone = currentCellZone;
             } else if (currentCellZone !== firstBlockZone) {
-                return false; // 禁止物品的任何实体部分跨区
+                return false; 
             }
         }
 
@@ -122,14 +123,25 @@ export const removeItemFromGrid = (grid: (string | null)[][], itemId: string) =>
   return grid.map(row => row.map(cell => (cell === itemId ? null : cell)));
 };
 
-export const getPlayerZone = (x: number, y: number): 'SAFE' | 'EQUIP' | 'BACKPACK' => {
+export const getPlayerZone = (x: number, y: number, level: number = 1): 'SAFE' | 'EQUIP' | 'BACKPACK' => {
+    // 本体 (Level 0) 的 5x4 固定布局 (安全区 1x2, 装备区 1x3, 背包区 3x5)
+    if (level === 0) {
+        if (y === 0) return x < 2 ? 'SAFE' : 'EQUIP';
+        return 'BACKPACK';
+    }
     if (x < 3 && y < 3) return 'SAFE';     // 左上 3x3
     if (x >= 3 && y < 2) return 'EQUIP';   // 右上 5x2
     return 'BACKPACK';                     // 剩下的所有格子
 };
 
 export const isPlayerCellUnlocked = (x: number, y: number, level: number = 1) => {
-    const zone = getPlayerZone(x, y);
+    const zone = getPlayerZone(x, y, level);
+    
+    // 本体 (Level 0) 物理限制在 5x4 以内
+    if (level === 0) {
+        return x < 5 && y < 4;
+    }
+
     if (zone === 'SAFE') {
         if (level === 1) return x < 2 && y < 1; // 1级安全区 2x1 (左上角)
         if (level === 2) return x < 2 && y < 2; // 2级安全区 2x2

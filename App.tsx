@@ -56,9 +56,18 @@ const INITIAL_META_STATE: MetaState = {
     items: [],
     width: WAREHOUSE_WIDTH,
     height: WAREHOUSE_HEIGHT,
-    unlockedRows: 6
+    unlockedRows: 14 // 初始全开，方便测试
   },
   roster: [
+    {
+      id: 'commander-001',
+      name: '本体 (指挥官)',
+      class: 'COMMANDER',
+      level: 0,
+      exp: 0,
+      stats: INITIAL_PLAYER,
+      inventory: INITIAL_INVENTORY
+    },
     {
       id: 'char-001',
       name: 'Alpha-01',
@@ -73,42 +82,8 @@ const INITIAL_META_STATE: MetaState = {
 
 export default function App() {
   const [phase, setPhase] = useState<GamePhase>('MENU');
-  const [metaState, setMetaState] = useState<MetaState>(() => {
-    const saved = localStorage.getItem('rogue-ttrpg-meta');
-    const initialState = saved ? JSON.parse(saved) : INITIAL_META_STATE;
-
-    // Data Migration: Warehouse Expand
-    if (initialState.warehouse && initialState.warehouse.height !== WAREHOUSE_HEIGHT) {
-        let newGrid = createEmptyGrid(WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT);
-        initialState.warehouse.items.forEach((item: GridItem) => {
-            const itemForPlacement = { ...item, rotation: 0 as const };
-            newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
-        });
-        initialState.warehouse.grid = newGrid;
-        initialState.warehouse.width = WAREHOUSE_WIDTH;
-        initialState.warehouse.height = WAREHOUSE_HEIGHT;
-    }
-
-    if (initialState.warehouse && initialState.warehouse.unlockedRows === undefined) {
-        initialState.warehouse.unlockedRows = 6;
-    }
-
-    // Data Migration: Ensure all items have originalShape
-    initialState.roster?.forEach((char: Character) => {
-        char.inventory?.items?.forEach(item => {
-            if (!item.originalShape) {
-                item.originalShape = item.shape;
-            }
-        });
-    });
-    initialState.warehouse?.items?.forEach(item => {
-        if (!item.originalShape) {
-            item.originalShape = item.shape;
-        }
-    });
-
-    return initialState;
-  });
+  // 彻底移除由于 localStorage 遗留括号导致的报错，纯净初始化
+  const [metaState, setMetaState] = useState<MetaState>(INITIAL_META_STATE);
   const [player, setPlayer] = useState<PlayerStats>(INITIAL_PLAYER);
   const [inventory, setInventory] = useState<InventoryState>(INITIAL_INVENTORY);
   const [depth, setDepth] = useState(1);
@@ -120,10 +95,7 @@ export default function App() {
   // Developer Tools
   const [isGodMode, setIsGodMode] = useState(false);
 
-  // --- LOCALSTORAGE PERSISTENCE ---
-  useEffect(() => {
-    localStorage.setItem('rogue-ttrpg-meta', JSON.stringify(metaState));
-  }, [metaState]);
+
 
   // --- STATS CALCULATION (Passive Effects) ---
   useEffect(() => {

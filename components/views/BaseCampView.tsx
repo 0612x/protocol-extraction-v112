@@ -226,6 +226,8 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                     setExternalInventory={handleWarehouseUpdate}
                     externalTitle="基地仓库"
                     customPlayerHeader={characterSelector}
+                    playerLevel={selectedChar.level}
+                    playerClass={selectedChar.class} // 关键：向下层透传当前职业
                 />
             </div>
         </div>

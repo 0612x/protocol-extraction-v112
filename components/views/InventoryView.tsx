@@ -20,7 +20,8 @@ interface InventoryViewProps {
   externalTitle?: string;
   setMetaState?: React.Dispatch<React.SetStateAction<MetaState>>;
   playerLevel?: number; // 角色素体等级
-  customPlayerHeader?: React.ReactNode; // 新增：用于在背包正上方渲染素体选择器
+  playerClass?: string; // 修复：接收职业类型，避免 undefined
+  customPlayerHeader?: React.ReactNode; 
 }
 
 const CONTAINER_WIDTH = 8;
@@ -89,6 +90,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     externalTitle,
     setMetaState,
     playerLevel = 1,
+    playerClass = 'OPERATOR', // 给定安全默认值
     customPlayerHeader
 }) => {
   const [isBoxOpen, setIsBoxOpen] = useState(false);
@@ -695,7 +697,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                    const tempGrid = rebuildGrid(tempItems, gW, gH);
                    const itemForCheck = dragState.item;
                    
-                   const isStandardValid = canPlaceItem(tempGrid, itemForCheck, cellX, cellY, targetUnlocked) && checkPlayerLock(targetGridType, itemForCheck, cellX, cellY);
+                   const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = targetGridType === 'LOOT' ? 'WAREHOUSE' : (playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT');
+                   const isStandardValid = canPlaceItem(tempGrid, itemForCheck, cellX, cellY, targetUnlocked, ctx) && checkPlayerLock(targetGridType, itemForCheck, cellX, cellY);
                    
                    if (!isStandardValid) {
                         // Collision detected! Try Smart Arrange
@@ -846,9 +849,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
           // 3. Check Placement OR Smart Arrange
           const itemForCheck = state.item;
+          const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = targetGridType === 'LOOT' ? 'WAREHOUSE' : (playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT');
 
           // Standard Place with Lock Validation
-          if (canPlaceItem(tempTargetGrid, itemForCheck, cellX, cellY, targetUnlocked) && checkPlayerLock(targetGridType, itemForCheck, cellX, cellY)) {
+          if (canPlaceItem(tempTargetGrid, itemForCheck, cellX, cellY, targetUnlocked, ctx) && checkPlayerLock(targetGridType, itemForCheck, cellX, cellY)) {
                moveItem(state.item, state.sourceGrid, targetGridType, cellX, cellY);
                return;
           }
@@ -1042,12 +1046,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     let foundX = -1;
     let foundY = -1;
     const targetUnlocked = !isPlayerInventory ? externalInventory?.unlockedRows : undefined;
+    const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = !isPlayerInventory ? 'WAREHOUSE' : (playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT');
 
     for (const [dx, dy] of offsets) {
         const testX = selectedItem.x + dx;
         const testY = selectedItem.y + dy;
         
-        if (canPlaceItem(tempGrid, tempItem, testX, testY, targetUnlocked) && checkPlayerLock(isPlayerInventory ? 'PLAYER' : 'LOOT', tempItem, testX, testY)) {
+        if (canPlaceItem(tempGrid, tempItem, testX, testY, targetUnlocked, ctx) && checkPlayerLock(isPlayerInventory ? 'PLAYER' : 'LOOT', tempItem, testX, testY)) {
             foundX = testX;
             foundY = testY;
             break;
@@ -1223,9 +1228,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                        } else {
                            let tempGrid = gridData;
                            if (dragState.sourceGrid === gridType) tempGrid = removeItemFromGrid(gridData, dragState.item.id);
-                           const itemForCheck = dragState.item; // 核心修复：绝对禁止将 rotation 归零
+                           const itemForCheck = dragState.item; 
                            const targetUnlocked = gridType === 'LOOT' ? externalInventory?.unlockedRows : undefined;
-                           isGhostValid = canPlaceItem(tempGrid, itemForCheck, cellX, cellY, targetUnlocked) && checkPlayerLock(gridType, itemForCheck, cellX, cellY);
+                           const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = gridType === 'LOOT' ? 'WAREHOUSE' : (playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT');
+                           isGhostValid = canPlaceItem(tempGrid, itemForCheck, cellX, cellY, targetUnlocked, ctx) && checkPlayerLock(gridType, itemForCheck, cellX, cellY);
 
                            // Consumable Stack Check
                            if (!isGhostValid && dragState.item.type === 'CONSUMABLE') {
@@ -1590,23 +1596,38 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <div className="flex-1 overflow-hidden w-full flex justify-center items-center p-2 min-h-0 relative">
                 <div 
                     ref={playerGridRef}
-                    className="grid gap-1 bg-black p-2 border-2 border-stone-700 shadow-2xl relative m-auto"
-                    style={{ gridTemplateColumns: `repeat(${INVENTORY_WIDTH}, 36px)` }}
+                    className="grid gap-1 bg-black p-2 border-2 border-stone-700 shadow-2xl relative m-auto transition-all"
+                    style={{ gridTemplateColumns: `repeat(${playerClass === 'COMMANDER' ? 5 : INVENTORY_WIDTH}, 36px)` }}
                 >
-                    {/* Markers - 绝对精准像素对齐 (36px格子 + 4px间隙 + 8px内边距) */}
-                    <div className="absolute top-[8px] left-[8px] w-[116px] h-[116px] border-r-2 border-b-2 border-dungeon-gold/40 pointer-events-none z-20 flex items-start justify-start p-1 shadow-[4px_4px_10px_rgba(202,138,4,0.05)]">
-                        <span className="text-[10px] font-bold text-dungeon-gold/60 uppercase bg-black/50 px-1 rounded">安全区</span>
-                    </div>
-                    <div className="absolute top-[8px] right-[8px] w-[196px] h-[76px] border-b-2 border-l-2 border-blue-500/30 pointer-events-none z-20 flex items-start justify-end p-1 shadow-[-4px_4px_10px_rgba(59,130,246,0.05)]">
-                        <span className="text-[10px] font-bold text-blue-400/60 uppercase bg-black/50 px-1 rounded">装备区</span>
-                    </div>
-                    <div className="absolute bottom-[8px] right-[8px] w-[196px] h-[116px] pointer-events-none z-20 flex items-end justify-end p-1">
-                        <span className="text-[10px] font-bold text-stone-500 uppercase bg-black/50 px-1 rounded">背包区</span>
-                    </div>
+                    {playerClass === 'COMMANDER' ? (
+                        <>
+                            <div className="absolute top-[8px] left-[8px] w-[76px] h-[36px] border-r-2 border-b-2 border-dungeon-gold/40 pointer-events-none z-20 flex items-center justify-center p-1 bg-dungeon-gold/5 shadow-[4px_4px_10px_rgba(202,138,4,0.05)]">
+                                <span className="text-[10px] font-bold text-dungeon-gold/60 uppercase rounded">安全</span>
+                            </div>
+                            <div className="absolute top-[8px] left-[88px] w-[116px] h-[36px] border-b-2 border-blue-500/30 pointer-events-none z-20 flex items-center justify-center p-1 bg-blue-500/5 shadow-[-4px_4px_10px_rgba(59,130,246,0.05)]">
+                                <span className="text-[10px] font-bold text-blue-400/60 uppercase rounded">装备</span>
+                            </div>
+                            <div className="absolute top-[48px] left-[8px] w-[196px] h-[116px] pointer-events-none z-20 flex items-end justify-end p-1">
+                                <span className="text-[10px] font-bold text-stone-500 uppercase bg-black/50 px-1 rounded">背包区</span>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="absolute top-[8px] left-[8px] w-[116px] h-[116px] border-r-2 border-b-2 border-dungeon-gold/40 pointer-events-none z-20 flex items-start justify-start p-1 shadow-[4px_4px_10px_rgba(202,138,4,0.05)]">
+                                <span className="text-[10px] font-bold text-dungeon-gold/60 uppercase bg-black/50 px-1 rounded">安全区</span>
+                            </div>
+                            <div className="absolute top-[8px] right-[8px] w-[196px] h-[76px] border-b-2 border-l-2 border-blue-500/30 pointer-events-none z-20 flex items-start justify-end p-1 shadow-[-4px_4px_10px_rgba(59,130,246,0.05)]">
+                                <span className="text-[10px] font-bold text-blue-400/60 uppercase bg-black/50 px-1 rounded">装备区</span>
+                            </div>
+                            <div className="absolute bottom-[8px] right-[8px] w-[196px] h-[116px] pointer-events-none z-20 flex items-end justify-end p-1">
+                                <span className="text-[10px] font-bold text-stone-500 uppercase bg-black/50 px-1 rounded">背包区</span>
+                            </div>
+                        </>
+                    )}
                     
-                    {/* 强制使用 INVENTORY_HEIGHT 常量 (5行)，裁切掉由于旧存档遗留的第六行 */}
-                    {Array.from({length: INVENTORY_HEIGHT}).map((_, y) =>
-                        Array.from({length: INVENTORY_WIDTH}).map((_, x) => renderCell(x, y, 'PLAYER', inventory.grid, inventory.items))
+                    {/* 物理裁切：本体只渲染 5x4 以内的格子 */}
+                    {Array.from({length: playerClass === 'COMMANDER' ? 4 : INVENTORY_HEIGHT}).map((_, y) =>
+                        Array.from({length: playerClass === 'COMMANDER' ? 5 : INVENTORY_WIDTH}).map((_, x) => renderCell(x, y, 'PLAYER', inventory.grid, inventory.items))
                     )}
                 </div>
             </div>

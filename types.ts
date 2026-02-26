@@ -34,10 +34,13 @@ export interface MetaState {
   roster: Character[];          // Recruited characters
 }
 
+// 新增：用于判定网格区域规则的上下文
+export type GridContext = 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT';
+
 export interface Character {
   id: string;
   name: string;
-  class: 'OPERATOR' | 'GHOST' | 'CONSTRUCT';
+  class: 'OPERATOR' | 'GHOST' | 'CONSTRUCT' | 'COMMANDER'; // 增加 COMMANDER (本体)
   level: number;
   exp: number;
   stats: PlayerStats;       // Current combat stats/deck
