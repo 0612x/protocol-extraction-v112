@@ -1,0 +1,229 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>暗区指令 (Protocol: Extraction)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['"Noto Serif SC"', '"Crimson Text"', 'serif'],
+              display: ['"Noto Serif SC"', '"Cinzel"', 'serif'], // Prioritize Chinese font for better consistency
+              mono: ['"Cinzel"', 'serif'],
+            },
+            colors: {
+              dungeon: {
+                black: '#0c0a09', // Warmer black (Stone 950)
+                dark: '#1c1917',  // Stone 900
+                stone: '#292524', // Stone 800
+                light: '#44403c', // Stone 700
+                border: '#57534e', // Stone 600 (Visible borders)
+                red: '#7f1d1d',   // Red 900
+                blood: '#991b1b', // Red 800
+                gold: '#a16207',  // Yellow 700 (Old Gold)
+                brass: '#b45309', // Amber 700
+                flesh: '#e7e5e4', // Stone 200 (Text color)
+                muted: '#a8a29e', // Stone 400
+                void: '#000000',
+                rust: '#7c2d12'   // Orange 900
+              }
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'spin-slow': 'spin 12s linear infinite',
+              'spin-reverse-slow': 'spinReverse 15s linear infinite',
+              'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+              'float': 'float 6s ease-in-out infinite',
+              'float-delayed': 'float 7s ease-in-out 1s infinite',
+              'flicker': 'flicker 2s infinite',
+              'glitch': 'glitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite',
+              'breathing': 'breathing 5s ease-in-out infinite',
+              'fog': 'fog 20s linear infinite',
+              'slide-in-up': 'slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both',
+              'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) both',
+              'lunge': 'lunge 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              'slash': 'slash 0.2s ease-out forwards',
+              'fade-out-up': 'fadeOutUp 1s ease-out forwards',
+              'split-left': 'splitLeft 0.4s cubic-bezier(0.1, 0.7, 0.1, 1) forwards',
+              'split-right': 'splitRight 0.4s cubic-bezier(0.1, 0.7, 0.1, 1) forwards',
+              'shatter-tl': 'shatterTL 0.5s ease-out forwards',
+              'shatter-tr': 'shatterTR 0.5s ease-out forwards',
+              'shatter-bl': 'shatterBL 0.5s ease-out forwards',
+              'shatter-br': 'shatterBR 0.5s ease-out forwards',
+              'flash-white': 'flashWhite 0.35s ease-out forwards',
+              'launch-card': 'launchCard 0.35s cubic-bezier(0.19, 1, 0.22, 1) forwards',
+              'dash-forward': 'dashForward 0.4s cubic-bezier(0.1, 0.8, 0.2, 1) forwards',
+              'dust-fade': 'dustFade 0.6s ease-out forwards',
+              'scan-line': 'scanLine 1.5s linear infinite',
+              'hologram': 'hologram 2s ease-in-out infinite',
+              'draw-card': 'drawCard 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards',
+            },
+            keyframes: {
+              drawCard: {
+                '0%': { transform: 'translateY(150%) scale(0.5) rotate(-15deg)', opacity: '0' },
+                '60%': { transform: 'translateY(-15%) scale(1.1) rotate(5deg)', opacity: '1' },
+                '80%': { transform: 'translateY(5%) scale(0.95) rotate(-2deg)' },
+                '100%': { transform: 'translateY(0) scale(1) rotate(0deg)', opacity: '1' }
+              },
+              spinReverse: {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(-360deg)' }
+              },
+              shake: {
+                '10%, 90%': { transform: 'translate3d(-2px, 0, 0)' },
+                '20%, 80%': { transform: 'translate3d(4px, 0, 0)' },
+                '30%, 50%, 70%': { transform: 'translate3d(-6px, 0, 0)' },
+                '40%, 60%': { transform: 'translate3d(6px, 0, 0)' }
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' }
+              },
+              flicker: {
+                '0%, 100%': { opacity: 1 },
+                '50%': { opacity: 0.7 },
+                '25%, 75%': { opacity: 0.9 }
+              },
+              glitch: {
+                 '0%': { transform: 'translate(0)' },
+                 '20%': { transform: 'translate(-2px, 2px)' },
+                 '40%': { transform: 'translate(-2px, -2px)' },
+                 '60%': { transform: 'translate(2px, 2px)' },
+                 '80%': { transform: 'translate(2px, -2px)' },
+                 '100%': { transform: 'translate(0)' }
+              },
+              breathing: {
+                '0%, 100%': { transform: 'scale(1)', filter: 'brightness(1)' },
+                '50%': { transform: 'scale(1.05)', filter: 'brightness(1.2) drop-shadow(0 0 15px rgba(127, 29, 29, 0.3))' }
+              },
+              fog: {
+                '0%': { backgroundPosition: '0% 0%' },
+                '100%': { backgroundPosition: '200% 0%' }
+              },
+              slideInUp: {
+                '0%': { transform: 'translateY(100px) rotate(0deg)', opacity: 0 },
+                '100%': { opacity: 1 }
+              },
+              popIn: {
+                '0%': { transform: 'scale(0.5)', opacity: 0 },
+                '100%': { transform: 'scale(1)', opacity: 1 }
+              },
+              lunge: {
+                '0%': { transform: 'translateY(0) scale(1)' },
+                '50%': { transform: 'translateY(60px) scale(1.2)' },
+                '100%': { transform: 'translateY(0) scale(1)' }
+              },
+              slash: {
+                '0%': { clipPath: 'polygon(0 0, 0 0, 0 0, 0 0)', opacity: 1 },
+                '20%': { clipPath: 'polygon(20% 0, 80% 0, 60% 100%, 0% 100%)' },
+                '100%': { clipPath: 'polygon(100% 0, 100% 0, 100% 100%, 100% 100%)', opacity: 0 }
+              },
+              fadeOutUp: {
+                '0%': { transform: 'translateY(0)', opacity: 1 },
+                '100%': { transform: 'translateY(-30px)', opacity: 0 }
+              },
+              splitLeft: {
+                '0%': { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+                '100%': { transform: 'translate(-80px, -40px) rotate(-25deg)', opacity: 0 }
+              },
+              splitRight: {
+                '0%': { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+                '100%': { transform: 'translate(80px, -40px) rotate(25deg)', opacity: 0 }
+              },
+              shatterTL: { '0%': { opacity: 1 }, '100%': { transform: 'translate(-50px, -50px) rotate(-15deg)', opacity: 0 } },
+              shatterTR: { '0%': { opacity: 1 }, '100%': { transform: 'translate(50px, -50px) rotate(15deg)', opacity: 0 } },
+              shatterBL: { '0%': { opacity: 1 }, '100%': { transform: 'translate(-50px, 50px) rotate(-15deg)', opacity: 0 } },
+              shatterBR: { '0%': { opacity: 1 }, '100%': { transform: 'translate(50px, 50px) rotate(15deg)', opacity: 0 } },
+              flashWhite: {
+                '0%': { opacity: 0 },
+                '10%': { opacity: 1 },
+                '100%': { opacity: 0 }
+              },
+              launchCard: {
+                '0%': { transform: 'translateY(0) scale(1)', opacity: '1' },
+                '20%': { transform: 'translateY(-30px) scale(1.1)' },
+                '100%': { transform: 'translateY(-250px) scale(0.4)', opacity: '0' }
+              },
+              dashForward: {
+                '0%': { transform: 'translateY(0) scale(1)', opacity: '1', filter: 'brightness(1)' },
+                '40%': { transform: 'translateY(-40px) scale(1.2)', opacity: '1', filter: 'brightness(1.5)' },
+                '100%': { transform: 'translateY(-150px) scale(0)', opacity: '0', filter: 'brightness(3)' }
+              },
+              dustFade: {
+                '0%': { transform: 'scale(1)', opacity: 0.8 },
+                '100%': { transform: 'scale(1.5)', opacity: 0 }
+              },
+              scanLine: {
+                '0%': { transform: 'translateY(-100%)', opacity: 0 },
+                '10%': { opacity: 1 },
+                '90%': { opacity: 1 },
+                '100%': { transform: 'translateY(100%)', opacity: 0 }
+              },
+              hologram: {
+                '0%, 100%': { opacity: 0.5 },
+                '50%': { opacity: 0.8 }
+              }
+            },
+            backgroundImage: {
+              'noise': "url('https://www.transparenttextures.com/patterns/stardust.png')",
+              'grunge': "url('https://www.transparenttextures.com/patterns/black-felt.png')",
+              'paper': "url('https://www.transparenttextures.com/patterns/cream-paper.png')",
+              'radial-blood': "radial-gradient(circle, rgba(69,10,10,0.4) 0%, rgba(0,0,0,0) 70%)",
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      html, body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #0c0a09;
+        touch-action: none;
+        font-family: 'Noto Serif SC', serif;
+      }
+      body {
+        color: #e7e5e4;
+      }
+      .vignette {
+        pointer-events: none;
+        background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.95) 100%);
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+      }
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: #1c1917; }
+      ::-webkit-scrollbar-thumb { background: #57534e; }
+      .font-display { font-family: 'Noto Serif SC', serif; }
+      .text-shadow-blood { text-shadow: 0 0 10px rgba(127, 29, 29, 1); }
+      .text-shadow-gold { text-shadow: 0 0 10px rgba(161, 98, 7, 0.8); }
+      .text-shadow-black { text-shadow: 0 2px 4px rgba(0,0,0,0.9); }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root" class="w-full h-full flex justify-center items-center bg-dungeon-black"></div>
+     <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
