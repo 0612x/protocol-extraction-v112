@@ -1185,9 +1185,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       const isLocked = (gridType === 'LOOT' && externalInventory !== undefined && externalInventory.unlockedRows !== undefined && y >= externalInventory.unlockedRows) ||
                        (gridType === 'PLAYER' && !isPlayerCellUnlocked(x, y, playerLevel));
 
-      // NEW ZONES LOGIC based on 8x5 grid
-      const isSafeZone = gridType === 'PLAYER' && getPlayerZone(x, y) === 'SAFE';
-      const isEquipmentZone = gridType === 'PLAYER' && getPlayerZone(x, y) === 'EQUIP';
+      // 核心修复：必须把等级传给区域获取函数，以区分本体(Level 0)和素体
+      const effectiveLevel = playerClass === 'COMMANDER' ? 0 : playerLevel;
+      const isSafeZone = gridType === 'PLAYER' && getPlayerZone(x, y, effectiveLevel) === 'SAFE';
+      const isEquipmentZone = gridType === 'PLAYER' && getPlayerZone(x, y, effectiveLevel) === 'EQUIP';
 
       // Drag Ghost (Where the user's cursor is trying to place)
       let isGhost = false;
@@ -1599,29 +1600,33 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className="grid gap-1 bg-black p-2 border-2 border-stone-700 shadow-2xl relative m-auto transition-all"
                     style={{ gridTemplateColumns: `repeat(${playerClass === 'COMMANDER' ? 5 : INVENTORY_WIDTH}, 36px)` }}
                 >
+                    {/* 动态标记框 - 开启全包围线框及高亮材质 */}
                     {playerClass === 'COMMANDER' ? (
                         <>
-                            <div className="absolute top-[8px] left-[8px] w-[76px] h-[36px] border-r-2 border-b-2 border-dungeon-gold/40 pointer-events-none z-20 flex items-center justify-center p-1 bg-dungeon-gold/5 shadow-[4px_4px_10px_rgba(202,138,4,0.05)]">
-                                <span className="text-[10px] font-bold text-dungeon-gold/60 uppercase rounded">安全</span>
+                            <div className="absolute top-[8px] left-[8px] w-[76px] h-[36px] border-2 border-dungeon-gold/60 pointer-events-none z-20 flex items-center justify-center p-1 bg-dungeon-gold/10 shadow-[0_0_15px_rgba(202,138,4,0.1)] rounded-sm">
+                                <span className="text-[10px] font-bold text-dungeon-gold/80 uppercase">安全</span>
                             </div>
-                            <div className="absolute top-[8px] left-[88px] w-[116px] h-[36px] border-b-2 border-blue-500/30 pointer-events-none z-20 flex items-center justify-center p-1 bg-blue-500/5 shadow-[-4px_4px_10px_rgba(59,130,246,0.05)]">
-                                <span className="text-[10px] font-bold text-blue-400/60 uppercase rounded">装备</span>
+                            <div className="absolute top-[8px] left-[88px] w-[116px] h-[36px] border-2 border-blue-500/60 pointer-events-none z-20 flex items-center justify-center p-1 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.1)] rounded-sm">
+                                <span className="text-[10px] font-bold text-blue-400/80 uppercase">装备</span>
                             </div>
-                            <div className="absolute top-[48px] left-[8px] w-[196px] h-[116px] pointer-events-none z-20 flex items-end justify-end p-1">
-                                <span className="text-[10px] font-bold text-stone-500 uppercase bg-black/50 px-1 rounded">背包区</span>
+                            <div className="absolute top-[48px] left-[8px] w-[196px] h-[116px] border-2 border-stone-400/50 pointer-events-none z-20 flex items-end justify-end p-1 rounded-sm">
+                                <span className="text-[10px] font-bold text-stone-300 uppercase bg-black/80 px-1.5 py-0.5 rounded shadow-lg border border-stone-600/50">背包区</span>
                             </div>
                         </>
                     ) : (
                         <>
-                            <div className="absolute top-[8px] left-[8px] w-[116px] h-[116px] border-r-2 border-b-2 border-dungeon-gold/40 pointer-events-none z-20 flex items-start justify-start p-1 shadow-[4px_4px_10px_rgba(202,138,4,0.05)]">
-                                <span className="text-[10px] font-bold text-dungeon-gold/60 uppercase bg-black/50 px-1 rounded">安全区</span>
+                            <div className="absolute top-[8px] left-[8px] w-[116px] h-[116px] border-2 border-dungeon-gold/50 pointer-events-none z-20 flex items-start justify-start p-1 shadow-[0_0_15px_rgba(202,138,4,0.05)] rounded-sm">
+                                <span className="text-[10px] font-bold text-dungeon-gold/80 uppercase bg-black/80 px-1 rounded border border-dungeon-gold/30">安全区</span>
                             </div>
-                            <div className="absolute top-[8px] right-[8px] w-[196px] h-[76px] border-b-2 border-l-2 border-blue-500/30 pointer-events-none z-20 flex items-start justify-end p-1 shadow-[-4px_4px_10px_rgba(59,130,246,0.05)]">
-                                <span className="text-[10px] font-bold text-blue-400/60 uppercase bg-black/50 px-1 rounded">装备区</span>
+                            <div className="absolute top-[8px] right-[8px] w-[196px] h-[76px] border-2 border-blue-500/40 pointer-events-none z-20 flex items-start justify-end p-1 shadow-[0_0_15px_rgba(59,130,246,0.05)] rounded-sm">
+                                <span className="text-[10px] font-bold text-blue-400/80 uppercase bg-black/80 px-1 rounded border border-blue-500/30">装备区</span>
                             </div>
-                            <div className="absolute bottom-[8px] right-[8px] w-[196px] h-[116px] pointer-events-none z-20 flex items-end justify-end p-1">
-                                <span className="text-[10px] font-bold text-stone-500 uppercase bg-black/50 px-1 rounded">背包区</span>
+                            
+                            {/* 素体的倒L型背包区补全（用两个线框拼接成完整包围） */}
+                            <div className="absolute bottom-[8px] right-[8px] w-[196px] h-[116px] border-2 border-stone-400/50 pointer-events-none z-20 flex items-end justify-end p-1 rounded-sm">
+                                <span className="text-[10px] font-bold text-stone-300 uppercase bg-black/80 px-1.5 py-0.5 rounded shadow-lg border border-stone-600/50">背包区</span>
                             </div>
+                            <div className="absolute bottom-[8px] left-[8px] w-[116px] h-[76px] border-2 border-stone-400/50 pointer-events-none z-20 rounded-sm"></div>
                         </>
                     )}
                     
