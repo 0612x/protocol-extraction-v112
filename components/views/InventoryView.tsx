@@ -152,6 +152,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [searchingItemId, setSearchingItemId] = useState<string | null>(null);
   const [justRevealedId, setJustRevealedId] = useState<string | null>(null); // For feedback animation
   const [rotateError, setRotateError] = useState(false); // For rotation failure feedback
+  const [storeError, setStoreError] = useState(false); // 新增：一键入库失败的柔性反馈
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -523,7 +524,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       }
 
       if (failed) {
-          alert("【入库失败】仓库空间不足或物品过于零散。\n无法将背包全部清空，请手动整理仓库或部分转移。");
+          // 核心优化1：将生硬的 alert 替换为类似旋转失败的红色闪烁柔性提示
+          setStoreError(true);
+          setTimeout(() => setStoreError(false), 3000);
       } else if (successCount > 0) {
           setInventory({ ...inventory, items: currentPlayerItems, grid: currentPlayerGrid });
           setExternalInventory({ ...externalInventory, items: currentWarehouseItems, grid: currentWarehouseGrid });
@@ -1150,7 +1153,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           }
       }
   };
+// 新增：售卖物品逻辑（仅限在基地仓库使用）
+  const handleSellItem = () => {
+      if (!selectedItem || isCombat || !setMetaState) return;
+      const val = selectedItem.value || 0;
+      if (val <= 0) return;
+      const totalGain = val * (selectedItem.quantity || 1);
 
+      if (inventory.items.some(i => i.id === selectedItem.id)) {
+          const newItems = inventory.items.filter(i => i.id !== selectedItem.id);
+          const newGrid = removeItemFromGrid(inventory.grid, selectedItem.id);
+          setInventory({ ...inventory, items: newItems, grid: newGrid });
+      } else {
+          const newItems = lootItems.filter(i => i.id !== selectedItem.id);
+          const newGrid = removeItemFromGrid(lootGrid, selectedItem.id);
+          setLootItems(newItems);
+          setLootGrid(newGrid);
+      }
+
+      setMetaState(prev => ({
+          ...prev,
+          resources: { ...prev.resources, GOLD: (prev.resources.GOLD || 0) + totalGain }
+      }));
+      setSelectedItem(null);
+  };
   // --- RENDERING ---
   const renderCell = (x: number, y: number, gridType: 'PLAYER' | 'LOOT', gridData: (string|null)[][], itemsList: GridItem[]) => {
       const itemId = gridData[y][x];
@@ -1591,13 +1617,22 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         <div className="flex gap-2 shrink-0">
                             {selectedItem.isIdentified ? (
                                 <>
-                                    {selectedItem.type === 'CONSUMABLE' && (
-                                        <button onClick={handleUseItem} className="p-2 bg-green-900/50 text-green-400 border border-green-700 rounded hover:bg-green-900"><LucideZap size={14}/></button>
+                                    {/* 核心优化2：如果在仓库内 (!isCombat && externalInventory)，禁止使用物品 */}
+                                    {(!externalInventory || isCombat) && selectedItem.type === 'CONSUMABLE' && (
+                                        <button onClick={handleUseItem} className="p-2 bg-green-900/50 text-green-400 border border-green-700 rounded hover:bg-green-900 transition-colors"><LucideZap size={14}/></button>
                                     )}
+                                    
+                                    {/* 核心优化3：仓库模式下，显示高价值物品的售卖按钮 */}
+                                    {!isCombat && externalInventory && setMetaState && (selectedItem.value || 0) > 0 && (
+                                        <button onClick={handleSellItem} className="px-3 py-1 bg-yellow-900/40 text-yellow-500 border border-yellow-700/50 rounded hover:bg-yellow-800 flex items-center gap-1 text-xs font-bold transition-colors">
+                                            出售 🪙 {(selectedItem.value || 0) * (selectedItem.quantity || 1)}
+                                        </button>
+                                    )}
+
                                     {/* 点击“信息(i)”图标时，才弹出悬浮卡片 */}
                                     <button onClick={() => setShowItemDetails(true)} className="p-2 bg-stone-800 text-stone-300 border border-stone-600 rounded hover:bg-stone-700"><LucideInfo size={14}/></button>
                                     {!isCombat && <button onClick={handleRotate} className="p-2 bg-stone-800 text-stone-300 border border-stone-600 rounded hover:bg-stone-700"><LucideRotateCw size={14}/></button>}
-                                    {!isCombat && <button onClick={handleTrash} className="p-2 bg-red-950/50 text-red-400 border border-red-900 rounded hover:bg-red-900"><LucideTrash2 size={14}/></button>}
+                                    {!isCombat && <button onClick={handleTrash} className="p-2 bg-red-950/50 text-red-400 border border-red-900 hover:bg-red-900"><LucideTrash2 size={14}/></button>}
                                 </>
                             ) : (
                                 <div className="text-[10px] text-stone-500 animate-pulse">解析构造...</div>
@@ -1609,14 +1644,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         <div className="text-[10px] text-stone-500 italic">点击物品查看详情 · 拖拽整理</div>
                         
                         <div className="flex gap-2 items-center">
-                            {/* 新增：一键入库按钮（只有在基地仓库界面且背包有东西时才显示） */}
+                            {/* 新增：一键入库按钮及错误提示 */}
                             {externalTitle === "基地仓库" && inventory.items.length > 0 && (
-                                <button 
-                                    onClick={handleStoreAll}
-                                    className="flex items-center gap-1 text-[10px] bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border border-dungeon-gold/50 rounded px-2 py-1 transition-colors font-bold shadow-[0_0_10px_rgba(202,138,4,0.2)]"
-                                >
-                                    <LucidePackage size={12} /> 一键入库
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={handleStoreAll}
+                                        className="flex items-center gap-1 text-[10px] bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border border-dungeon-gold/50 rounded px-2 py-1 transition-colors font-bold shadow-[0_0_10px_rgba(202,138,4,0.2)]"
+                                    >
+                                        <LucidePackage size={12} /> 一键入库
+                                    </button>
+                                    {storeError && <span className="text-[10px] text-red-400 font-bold animate-pulse bg-red-900/40 px-2 py-1 rounded border border-red-800 shadow-lg">空间不足</span>}
+                                </div>
                             )}
 
                             {/* Test Button for Player Inventory (Only in Base Camp / Warehouse) */}

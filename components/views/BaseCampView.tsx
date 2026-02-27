@@ -21,6 +21,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const [activeTab, setActiveTab] = useState<Tab>('START');
   const [bodySubTab, setBodySubTab] = useState<BodySubTab>('STATUS');
   const [selectedCharId, setSelectedCharId] = useState<string>(metaState.roster[0]?.id || '');
+  const [isRecruiting, setIsRecruiting] = useState(false); // 新增：招募克隆仓动画状态
 
   const selectedChar = metaState.roster.find(c => c.id === selectedCharId) || metaState.roster[0];
 
@@ -272,33 +273,45 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                 <div className="font-bold text-stone-200 text-lg">标准素体 (OPERATOR)</div>
                                 <div className="text-xs text-stone-500 mt-2">均衡的承载能力，标准的背包物理限制。</div>
                             </div>
+                            {/* 核心优化5：抽卡/克隆招募动画集成 */}
                             <button 
-                                className="mt-4 w-full py-3 bg-stone-950 hover:bg-dungeon-gold/20 border border-stone-600 hover:border-dungeon-gold text-stone-300 hover:text-dungeon-gold font-bold rounded flex justify-center items-center gap-2 transition-all z-10"
+                                className="mt-4 w-full py-3 bg-stone-950 hover:bg-dungeon-gold/20 border border-stone-600 hover:border-dungeon-gold text-stone-300 hover:text-dungeon-gold font-bold rounded flex justify-center items-center gap-2 transition-all z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={isRecruiting}
                                 onClick={() => {
                                     const cost = 2000;
                                     if ((metaState.resources[ResourceType.GOLD] || 0) >= cost) {
-                                        const newId = `agent-${Date.now()}`;
-                                        const newAgent: Character = {
-                                            id: newId,
-                                            name: `Alpha-${Math.floor(Math.random() * 90) + 10}`,
-                                            class: 'OPERATOR',
-                                            level: 1,
-                                            exp: 0,
-                                            status: 'ALIVE',
-                                            stats: { maxHp: 100, hp: 100, maxEnergy: 3, energy: 3, baseDamage: 5, baseShield: 0, deck: [] },
-                                            inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
-                                        };
+                                        setIsRecruiting(true); // 激活克隆舱动画
+                                        
+                                        // 立即扣款，但延迟给角色
                                         setMetaState(prev => ({
                                             ...prev,
-                                            resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - cost },
-                                            roster: [...prev.roster, newAgent]
+                                            resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - cost }
                                         }));
+
+                                        setTimeout(() => {
+                                            const newId = `agent-${Date.now()}`;
+                                            const newAgent: Character = {
+                                                id: newId,
+                                                name: `Alpha-${Math.floor(Math.random() * 90) + 10}`,
+                                                class: 'OPERATOR',
+                                                level: 1,
+                                                exp: 0,
+                                                status: 'ALIVE',
+                                                stats: { maxHp: 100, hp: 100, maxEnergy: 3, energy: 3, baseDamage: 5, baseShield: 0, deck: [] },
+                                                inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
+                                            };
+                                            setMetaState(prev => ({
+                                                ...prev,
+                                                roster: [...prev.roster, newAgent]
+                                            }));
+                                            setIsRecruiting(false); // 关闭动画
+                                        }, 2800); // 克隆舱液面上涨的动画时长
                                     } else {
-                                        alert("资金不足！需要 2000 金币。");
+                                        alert("资金不足！培养标准素体需要 2000 资金。");
                                     }
                                 }}
                             >
-                                <LucideCoins size={16} className="text-dungeon-gold" /> 2000 招募
+                                <LucideCoins size={16} className="text-dungeon-gold" /> {isRecruiting ? '培养池运作中...' : '2000 招募'}
                             </button>
                         </div>
                         
@@ -446,6 +459,36 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   return (
     <div className="w-full h-full flex flex-col bg-dungeon-black text-stone-200 font-serif relative overflow-hidden">
       
+      {/* 炫酷的抽卡/克隆仓沉浸式动画蒙版 */}
+      {isRecruiting && (
+          <div className="absolute inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center backdrop-blur-sm transition-all duration-500">
+              <div className="relative w-64 h-96 flex flex-col items-center justify-center mt-12">
+                  <style>{`
+                      @keyframes scan-laser { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+                  `}</style>
+                  {/* 培养舱背景 */}
+                  <div className="absolute inset-0 border-4 border-dungeon-gold/30 rounded-t-[100px] rounded-b-xl shadow-[0_0_100px_rgba(202,138,4,0.15)] overflow-hidden bg-stone-900/20">
+                      {/* 扫描激光束 */}
+                      <div className="absolute w-full h-1 bg-dungeon-gold shadow-[0_0_20px_#ca8a04]" style={{ animation: 'scan-laser 2s linear infinite' }}></div>
+                      {/* 培养液注入动画 */}
+                      <div className="absolute bottom-0 w-full bg-dungeon-gold/20 transition-all ease-in-out" style={{ height: '100%', transitionDuration: '2800ms' }}></div>
+                  </div>
+                  
+                  {/* 漂浮的素体图标 */}
+                  <LucideUser size={120} className="text-dungeon-gold z-10 opacity-70 animate-pulse" strokeWidth={1} />
+                  
+                  <div className="absolute -bottom-16 flex flex-col items-center gap-2">
+                      <div className="text-dungeon-gold font-mono tracking-widest animate-pulse font-bold text-lg">
+                          素体合成中...
+                      </div>
+                      <div className="text-[10px] text-stone-500 font-mono uppercase">
+                          Initializing Cellular Matrix //
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Background Atmosphere */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-stone-900/20 via-black to-black pointer-events-none"></div>
       <div className="absolute inset-0 bg-noise opacity-5 pointer-events-none"></div>
