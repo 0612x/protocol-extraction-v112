@@ -191,32 +191,75 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const renderWarehouseTab = () => {
     // 将素体选择器抽离，作为背包区的专属头部
     const characterSelector = (
-        <div className="w-full overflow-x-auto no-scrollbar bg-black/80 border-b border-stone-800 p-2 shadow-inner">
-            <div className="flex gap-2 min-w-max px-2">
-                {metaState.roster.map(char => (
-                    <button 
-                        key={char.id}
-                        onClick={() => setSelectedCharId(char.id)}
-                        className={`relative flex items-center gap-3 px-3 py-1.5 rounded-lg border transition-all duration-200 group ${
-                            selectedCharId === char.id 
-                            ? 'bg-stone-800 border-stone-500 text-stone-100 shadow-[0_0_10px_rgba(0,0,0,0.5)]' 
-                            : 'bg-stone-900/40 border-stone-800 text-stone-600 hover:bg-stone-800 hover:border-stone-700'
-                        }`}
-                    >
-                        <div className={`w-2 h-2 rounded-full ${char.status === 'DEAD' ? 'bg-red-600 shadow-[0_0_5px_rgba(220,38,38,0.8)]' : (selectedCharId === char.id ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-stone-700')}`}></div>
-                        <div className="flex flex-col items-start">
-                            <span className={`text-xs font-bold ${char.status === 'DEAD' ? 'text-red-500 line-through opacity-80' : (selectedCharId === char.id ? 'text-stone-200' : 'text-stone-500 group-hover:text-stone-400')}`}>{char.name}</span>
-                            <span className={`text-[8px] font-mono uppercase ${char.status === 'DEAD' ? 'text-red-600 font-bold' : 'text-stone-600'}`}>
-                                {char.status === 'DEAD' ? 'M.I.A (阵亡)' : (char.class === 'COMMANDER' ? '指挥官' : `素体 LV.${char.level}`)}
-                            </span>
-                        </div>
-                        {selectedCharId === char.id && (
-                            <div className="absolute inset-0 border border-stone-500/30 rounded-lg animate-pulse pointer-events-none"></div>
-                        )}
-                    </button>
-                ))}
+        <>
+            <div className="w-full overflow-x-auto no-scrollbar bg-black/80 border-b border-stone-800 p-2 shadow-inner">
+                <div className="flex gap-2 min-w-max px-2">
+                    {metaState.roster.map(char => (
+                        <button 
+                            key={char.id}
+                            onClick={() => setSelectedCharId(char.id)}
+                            className={`relative flex items-center gap-3 px-3 py-1.5 rounded-lg border transition-all duration-200 group ${
+                                selectedCharId === char.id 
+                                ? 'bg-stone-800 border-stone-500 text-stone-100 shadow-[0_0_10px_rgba(0,0,0,0.5)]' 
+                                : 'bg-stone-900/40 border-stone-800 text-stone-600 hover:bg-stone-800 hover:border-stone-700'
+                            }`}
+                        >
+                            <div className={`w-2 h-2 rounded-full ${char.status === 'DEAD' ? 'bg-red-600 shadow-[0_0_5px_rgba(220,38,38,0.8)]' : (selectedCharId === char.id ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-stone-700')}`}></div>
+                            <div className="flex flex-col items-start">
+                                <span className={`text-xs font-bold ${char.status === 'DEAD' ? 'text-red-500 line-through opacity-80' : (selectedCharId === char.id ? 'text-stone-200' : 'text-stone-500 group-hover:text-stone-400')}`}>{char.name}</span>
+                                <span className={`text-[8px] font-mono uppercase ${char.status === 'DEAD' ? 'text-red-600 font-bold' : 'text-stone-600'}`}>
+                                    {char.status === 'DEAD' ? 'M.I.A (阵亡)' : (char.class === 'COMMANDER' ? '指挥官' : `素体 LV.${char.level}`)}
+                                </span>
+                            </div>
+                            {selectedCharId === char.id && (
+                                <div className="absolute inset-0 border border-stone-500/30 rounded-lg animate-pulse pointer-events-none"></div>
+                            )}
+                        </button>
+                    ))}
+                </div>
             </div>
-        </div>
+            
+            {/* 新增：在仓库背包顶部插入红色回收横幅与清理按钮，方便拖拽完遗物后直接销毁 */}
+            {selectedChar.status === 'DEAD' && (
+                <div className="bg-red-950/80 border-b border-red-900 p-2 flex justify-between items-center px-4 shadow-[0_5px_15px_rgba(153,27,27,0.3)] z-10 relative">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xl animate-pulse">⚠️</span>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-red-400 tracking-widest">M.I.A 遗物回收期</span>
+                            <span className="text-[10px] text-red-500/80">将下方保险区内的遗物移至上方仓库后，点击右侧清理残骸。</span>
+                        </div>
+                    </div>
+                    <button 
+                        className="bg-red-900/80 hover:bg-red-600 text-white text-xs px-4 py-1.5 rounded shadow-lg transition-all border border-red-500/50 font-bold"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const el = e.currentTarget;
+                            if (el.dataset.primed !== 'true') {
+                                el.dataset.primed = 'true';
+                                el.classList.add('bg-red-600', 'animate-pulse', 'border-white');
+                                el.innerText = "⚠️ 确认销毁?";
+                                setTimeout(() => {
+                                    if (el) {
+                                        el.dataset.primed = 'false';
+                                        el.classList.remove('bg-red-600', 'animate-pulse', 'border-white');
+                                        el.innerText = "清理残骸";
+                                    }
+                                }, 3000);
+                            } else {
+                                const targetId = selectedChar.id;
+                                const commanderId = metaState.roster[0].id;
+                                setSelectedCharId(commanderId);
+                                setTimeout(() => {
+                                    setMetaState(prev => ({ ...prev, roster: prev.roster.filter(c => c.id !== targetId) }));
+                                }, 50);
+                            }
+                        }}
+                    >
+                        清理残骸
+                    </button>
+                </div>
+            )}
+        </>
     );
 
     return (
