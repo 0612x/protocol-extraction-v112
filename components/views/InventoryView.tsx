@@ -1433,14 +1433,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                                     style={{ top: `${localY * 40}px`, height: '40px' }}
                                                 >
                                                     <button 
-                                                        className="pointer-events-auto bg-black/80 hover:bg-dungeon-gold/20 border border-dungeon-gold text-dungeon-gold text-xs px-4 py-1 rounded backdrop-blur-sm shadow-lg flex items-center gap-2 transition-all"
+                                                        className="pointer-events-auto bg-black/90 hover:bg-dungeon-gold/20 border-2 border-dungeon-gold text-dungeon-gold text-xs px-6 py-1.5 rounded backdrop-blur-sm shadow-[0_0_20px_rgba(202,138,4,0.3)] flex items-center gap-2 transition-all font-bold"
                                                         onClick={() => {
-                                                            if (setExternalInventory) {
-                                                                setExternalInventory(prev => ({...prev, unlockedRows: (prev.unlockedRows || 0) + 1}));
+                                                            if (setMetaState) {
+                                                                // 核心机制：首行500金币，之后每多解锁一行涨价 500
+                                                                const currentRows = externalInventory.unlockedRows || 5;
+                                                                const cost = 500 + (currentRows - 5) * 500;
+                                                                
+                                                                setMetaState(prev => {
+                                                                    const currentGold = prev.resources.GOLD || 0;
+                                                                    if (currentGold >= cost) {
+                                                                        return {
+                                                                            ...prev,
+                                                                            resources: { ...prev.resources, GOLD: currentGold - cost },
+                                                                            warehouse: { ...prev.warehouse, unlockedRows: currentRows + 1 }
+                                                                        };
+                                                                    } else {
+                                                                        alert(`资金不足！扩建需要 ${cost} 金币 (你当前拥有 ${currentGold})`);
+                                                                        return prev;
+                                                                    }
+                                                                });
                                                             }
                                                         }}
                                                     >
-                                                        <LucideLock size={12} /> 解锁扩容 (🪙 1000)
+                                                        <LucideLock size={14} /> 解锁新行 (消耗 🪙 {500 + ((externalInventory.unlockedRows || 5) - 5) * 500})
                                                     </button>
                                                 </div>
                                             )

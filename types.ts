@@ -1,5 +1,5 @@
 
-export type GamePhase = 'MENU' | 'COMBAT' | 'DRAFT' | 'LOOT' | 'EXTRACTION' | 'META' | 'GAME_OVER' | 'BASE_CAMP' | 'WAREHOUSE';
+export type GamePhase = 'MENU' | 'COMBAT' | 'DRAFT' | 'LOOT' | 'EXTRACTION' | 'META' | 'GAME_OVER' | 'BASE_CAMP' | 'WAREHOUSE' | 'SETTLEMENT';
 
 export enum CardType {
   STRIKE = 'STRIKE',
@@ -43,6 +43,7 @@ export interface Character {
   class: 'OPERATOR' | 'GHOST' | 'CONSTRUCT' | 'COMMANDER'; // 增加 COMMANDER (本体)
   level: number;
   exp: number;
+  status?: 'ALIVE' | 'DEAD'; // 新增生存状态
   stats: PlayerStats;       // Current combat stats/deck
   inventory: InventoryState; // Equipped items and backpack
 }

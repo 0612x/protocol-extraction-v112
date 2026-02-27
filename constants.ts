@@ -522,7 +522,7 @@ export const DRAW_AMOUNT = 2;
 export const INVENTORY_WIDTH = 8;
 export const INVENTORY_HEIGHT = 5; // 按照最新 8x5 结构要求更新
 export const WAREHOUSE_WIDTH = 8;
-export const WAREHOUSE_HEIGHT = 14; // 专门为竖屏优化的加长型仓库
+export const WAREHOUSE_HEIGHT = 40; // 8页 * 5行 = 总计 40行满级仓库
 export const SAFE_ZONE_WIDTH = 3; // Reduced to 3
 export const EQUIPMENT_ROW_COUNT = 2; // Reduced to 2 rows to give more space for backpack
 export const STAGES_PER_DEPTH = 5;

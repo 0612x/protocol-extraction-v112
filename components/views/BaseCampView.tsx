@@ -59,17 +59,39 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
             <p className="text-xs text-stone-500 italic">"准备好面对未知了吗？"</p>
         </div>
 
-        <div className="w-full max-w-sm p-8 bg-stone-900/40 border border-stone-700 rounded-xl hover:border-dungeon-red transition-all cursor-pointer group shadow-lg hover:shadow-dungeon-red/20" onClick={onStartRun}>
-            <div className="flex flex-col items-center gap-4">
-                <div className="p-4 bg-dungeon-red/10 rounded-full text-dungeon-red group-hover:bg-dungeon-red group-hover:text-white transition-colors duration-500">
-                    <LucidePlay size={48} className="ml-1" />
-                </div>
-                <div className="text-center">
-                    <h3 className="text-xl font-bold text-stone-200 group-hover:text-white">开始行动</h3>
-                    <p className="text-xs text-stone-500 mt-1">当前选中: {selectedChar.name}</p>
+        {selectedChar.status === 'DEAD' ? (
+            <div 
+                className="w-full max-w-sm p-8 bg-red-950/20 border border-red-900/60 rounded-xl hover:bg-red-900/40 hover:border-red-600 transition-all cursor-pointer group shadow-[0_0_30px_rgba(153,27,27,0.2)]" 
+                onClick={() => {
+                    if(window.confirm(`【警告】确定要清理 ${selectedChar.name} 的残骸吗？\n一旦清理，其保险区内所有未被转移到仓库的遗物将永久蒸发！`)) {
+                        setMetaState(prev => ({ ...prev, roster: prev.roster.filter(c => c.id !== selectedCharId) }));
+                        setSelectedCharId(metaState.roster[0].id); 
+                    }
+                }}
+            >
+                <div className="flex flex-col items-center gap-4">
+                    <div className="p-4 bg-red-900/30 rounded-full text-red-500 group-hover:bg-red-600 group-hover:text-white transition-colors duration-500 shadow-inner">
+                        <span className="text-4xl">☠️</span>
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-xl font-bold text-red-500 group-hover:text-red-400">清理残骸</h3>
+                        <p className="text-xs text-red-800 mt-1 font-bold">不可逆操作: {selectedChar.name} 将被永久删除</p>
+                    </div>
                 </div>
             </div>
-        </div>
+        ) : (
+            <div className="w-full max-w-sm p-8 bg-stone-900/40 border border-stone-700 rounded-xl hover:border-dungeon-red transition-all cursor-pointer group shadow-lg hover:shadow-dungeon-red/20" onClick={() => onStartRun(selectedCharId)}>
+                <div className="flex flex-col items-center gap-4">
+                    <div className="p-4 bg-dungeon-red/10 rounded-full text-dungeon-red group-hover:bg-dungeon-red group-hover:text-white transition-colors duration-500">
+                        <LucidePlay size={48} className="ml-1" />
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-xl font-bold text-stone-200 group-hover:text-white">开始行动</h3>
+                        <p className="text-xs text-stone-500 mt-1">当前编队: {selectedChar.name}</p>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 
@@ -181,10 +203,12 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                             : 'bg-stone-900/40 border-stone-800 text-stone-600 hover:bg-stone-800 hover:border-stone-700'
                         }`}
                     >
-                        <div className={`w-2 h-2 rounded-full ${selectedCharId === char.id ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-stone-700'}`}></div>
+                        <div className={`w-2 h-2 rounded-full ${char.status === 'DEAD' ? 'bg-red-600 shadow-[0_0_5px_rgba(220,38,38,0.8)]' : (selectedCharId === char.id ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-stone-700')}`}></div>
                         <div className="flex flex-col items-start">
-                            <span className={`text-xs font-bold ${selectedCharId === char.id ? 'text-stone-200' : 'text-stone-500 group-hover:text-stone-400'}`}>{char.name}</span>
-                            <span className="text-[8px] font-mono text-stone-600 uppercase">{char.class} LV.{char.level}</span>
+                            <span className={`text-xs font-bold ${char.status === 'DEAD' ? 'text-red-500 line-through opacity-80' : (selectedCharId === char.id ? 'text-stone-200' : 'text-stone-500 group-hover:text-stone-400')}`}>{char.name}</span>
+                            <span className={`text-[8px] font-mono uppercase ${char.status === 'DEAD' ? 'text-red-600 font-bold' : 'text-stone-600'}`}>
+                                {char.status === 'DEAD' ? 'M.I.A (阵亡)' : (char.class === 'COMMANDER' ? '指挥官' : `素体 LV.${char.level}`)}
+                            </span>
                         </div>
                         {selectedCharId === char.id && (
                             <div className="absolute inset-0 border border-stone-500/30 rounded-lg animate-pulse pointer-events-none"></div>

@@ -10,6 +10,8 @@ import { BaseCampView } from './components/views/BaseCampView';
 import { WarehouseView } from './components/views/WarehouseView';
 import { ExtractionView } from './components/views/ExtractionView';
 import { DraftView } from './components/views/DraftView';
+import { SettlementView } from './components/views/SettlementView'; // 引入结算界面
+import { getPlayerZone } from './utils/gridLogic'; // 引入区域计算
 import { LucideX, LucideSkull } from 'lucide-react';
 
 const INITIAL_PLAYER: PlayerStats = {
@@ -82,8 +84,15 @@ const INITIAL_META_STATE: MetaState = {
 
 export default function App() {
   const [phase, setPhase] = useState<GamePhase>('MENU');
-  // 彻底移除由于 localStorage 遗留括号导致的报错，纯净初始化
-  const [metaState, setMetaState] = useState<MetaState>(INITIAL_META_STATE);
+  const [metaState, setMetaState] = useState<MetaState>(() => {
+      // 保证初始有 5 行 (第一页) 仓库解锁
+      const init = { ...INITIAL_META_STATE };
+      init.warehouse.unlockedRows = 5; 
+      init.roster.forEach(c => c.status = 'ALIVE');
+      return init;
+  });
+  const [activeCharId, setActiveCharId] = useState<string | null>(null); // 记录当前出战人
+  const [runResult, setRunResult] = useState<any>(null); // 结算数据
   const [player, setPlayer] = useState<PlayerStats>(INITIAL_PLAYER);
   const [inventory, setInventory] = useState<InventoryState>(INITIAL_INVENTORY);
   const [depth, setDepth] = useState(1);
@@ -215,75 +224,83 @@ export default function App() {
   };
 
   const handleLoseCombat = () => {
-    // On Death: Only keep items in Safe Zone
-    const safeItems = inventory.items.filter(item => {
-        const isInSafeRow = item.y >= EQUIPMENT_ROW_COUNT;
-        const isInSafeCol = item.x < SAFE_ZONE_WIDTH;
-        return isInSafeRow && isInSafeCol;
-    });
-    
-    setMetaState(prev => {
-        const char = prev.roster[0];
-        let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
-        
-        // Reconstruct grid for saved items
-        safeItems.forEach(item => {
-             // FIX: Pass rotation: 0 because 'item.shape' is already rotated in state.
-             const itemForPlacement = { ...item, rotation: 0 as const };
-             newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
-        });
+    const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+    const isCommander = activeChar.class === 'COMMANDER';
+    const pLevel = isCommander ? 0 : activeChar.level;
 
-        const newChar = {
-            ...char,
-            inventory: {
-                ...char.inventory,
-                items: safeItems,
-                grid: newGrid
+    const safeItems: GridItem[] = [];
+    const lostItems: GridItem[] = [];
+
+    // 严苛过滤：任何一个方块（1）不在 SAFE 区，整个物品都会丢失！
+    inventory.items.forEach(item => {
+        let isSafe = true;
+        for (let r = 0; r < item.shape.length; r++) {
+            for (let c = 0; c < (item.shape[0]?.length || 0); c++) {
+                if (item.shape[r][c] === 1) {
+                    if (getPlayerZone(item.x + c, item.y + r, pLevel) !== 'SAFE') {
+                        isSafe = false;
+                    }
+                }
             }
-        };
-        return { ...prev, roster: [newChar, ...prev.roster.slice(1)] };
+        }
+        if (isSafe) safeItems.push(item);
+        else lostItems.push(item);
     });
 
-    alert(`理智耗尽... 非保留区的战利品已全部遗失。仅保留了 ${safeItems.length} 件物品。`);
-    setPhase('BASE_CAMP');
+    const totalValue = safeItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
+
+    setMetaState(prev => {
+        const newRoster = prev.roster.map(c => {
+            if (c.id === activeCharId) {
+                let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
+                safeItems.forEach(i => {
+                    const itemForPlacement = { ...i, rotation: 0 as const };
+                    newGrid = placeItemInGrid(newGrid, itemForPlacement, i.x, i.y);
+                });
+                return {
+                    ...c,
+                    status: isCommander ? 'ALIVE' : 'DEAD', // 本体永远ALIVE，素体DEAD
+                    inventory: { ...c.inventory, items: safeItems, grid: newGrid }
+                };
+            }
+            return c;
+        });
+        return { ...prev, roster: newRoster };
+    });
+
+    setRunResult({ outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander });
+    setPhase('SETTLEMENT');
   };
 
   const handleExtract = () => {
-    // On Extract: Keep ALL items
     const allItems = inventory.items;
+    const totalValue = allItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
+    const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
 
     setMetaState(prev => {
-        const char = prev.roster[0];
-        let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
-        
-        // Reconstruct grid
-        allItems.forEach(item => {
-             // FIX: Pass rotation: 0 because 'item.shape' is already rotated in state.
-             const itemForPlacement = { ...item, rotation: 0 as const };
-             newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
-        });
-
-        const newChar = {
-            ...char,
-            inventory: {
-                ...char.inventory,
-                items: allItems,
-                grid: newGrid
+        const newRoster = prev.roster.map(c => {
+            if (c.id === activeCharId) {
+                let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
+                allItems.forEach(item => {
+                    const itemForPlacement = { ...item, rotation: 0 as const };
+                    newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
+                });
+                return { ...c, inventory: { ...c.inventory, items: allItems, grid: newGrid } };
             }
-        };
-        return { ...prev, roster: [newChar, ...prev.roster.slice(1)] };
+            return c;
+        });
+        return { ...prev, roster: newRoster };
     });
     
-    alert(`成功撤离！带回了 ${inventory.items.length} 件遗物。`);
-    setPhase('BASE_CAMP');
+    setRunResult({ outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander: activeChar.class === 'COMMANDER' });
+    setPhase('SETTLEMENT');
   };
 
   const startExpedition = (charId?: string) => {
-    // Load state from selected character in Roster
-    const char = charId 
-        ? metaState.roster.find(c => c.id === charId) || metaState.roster[0]
-        : metaState.roster[0];
-
+    const char = charId ? metaState.roster.find(c => c.id === charId) || metaState.roster[0] : metaState.roster[0];
+    if (char.status === 'DEAD') return; // 防御性拦截
+    
+    setActiveCharId(char.id); // 锁定出战者
     setPlayer(char.stats);
     setInventory(char.inventory);
 
@@ -509,6 +526,19 @@ export default function App() {
           depth={depth}
           onContinue={handleContinue}
           onExtract={handleExtract}
+        />
+      )}
+      {phase === 'SETTLEMENT' && runResult && (
+        <SettlementView 
+            outcome={runResult.outcome}
+            extractedItems={runResult.extractedItems}
+            lostItems={runResult.lostItems}
+            totalValue={runResult.totalValue}
+            isCommander={runResult.isCommander}
+            onConfirm={() => {
+                setRunResult(null);
+                setPhase('BASE_CAMP');
+            }}
         />
       )}
 
