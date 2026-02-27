@@ -404,23 +404,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       }, duration);
   };
 
+  const playerCtx = playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT';
+  const lootCtx = externalInventory ? 'WAREHOUSE' : 'LOOT';
+
   const handleTakeAll = () => {
-      // Move all identified items from Loot to Player
-      
       let currentLootItems = [...lootItems];
       let currentLootGrid = [...lootGrid];
       let currentPlayerItems = [...inventory.items];
       let currentPlayerGrid = [...inventory.grid];
       let changed = false;
 
-      // Identify items first? No, only take identified.
       const identifiedLoot = currentLootItems.filter(i => i.isIdentified);
       
       for (const item of identifiedLoot) {
-          // Attempt simple place first
           let placed = false;
           
-          // TRY STACKING FIRST
           if (item.type === 'CONSUMABLE') {
               for (const existingItem of currentPlayerItems) {
                   if (existingItem.type === 'CONSUMABLE' && existingItem.name === item.name) {
@@ -435,18 +433,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           }
 
           if (!placed) {
-              // Try placing in grid
               for (let y = 0; y < INVENTORY_HEIGHT; y++) {
                   if (placed) break;
                   for (let x = 0; x < INVENTORY_WIDTH; x++) {
-                      if (canPlaceItem(currentPlayerGrid, item, x, y)) {
-                          // Move logic
-                          // 1. Add to player
+                      if (canPlaceItem(currentPlayerGrid, item, x, y, undefined, playerCtx)) {
                           const newItem = { ...item, x, y, rotation: 0, shape: item.originalShape, originalShape: item.originalShape };
                           currentPlayerGrid = placeItemInGrid(currentPlayerGrid, newItem, x, y);
                           currentPlayerItems.push(newItem);
                           
-                          // 2. Remove from loot
                           currentLootGrid = removeItemFromGrid(currentLootGrid, item.id);
                           currentLootItems = currentLootItems.filter(i => i.id !== item.id);
                           
@@ -467,40 +461,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   };
 
   const completeSearch = (itemId: string) => {
-      // Find item in loot or player
       const updateList = (items: GridItem[]) => items.map(item => {
           if (item.id === itemId && item.originalShape) {
-               // Restore Shape
                return { ...item, isIdentified: true, shape: item.originalShape };
           }
           return item;
       });
 
-      setLootItems(prev => {
-          const updated = updateList(prev);
-          rebuildLootGrid(updated);
-          return updated;
-      });
+      if (lootItems.some(i => i.id === itemId)) {
+          const updatedLoot = updateList(lootItems);
+          const w = externalInventory ? externalInventory.width : CONTAINER_WIDTH;
+          const h = externalInventory ? externalInventory.height : CONTAINER_HEIGHT;
+          setLootItems(updatedLoot);
+          setLootGrid(rebuildGrid(updatedLoot, w, h, lootCtx));
+      }
       
-      setInventory(prev => {
-          const updated = updateList(prev.items);
-          const newGrid = rebuildGrid(updated, prev.width, prev.height);
-          return { ...prev, items: updated, grid: newGrid };
-      });
+      if (inventory.items.some(i => i.id === itemId)) {
+          const updatedPlayer = updateList(inventory.items);
+          const newGrid = rebuildGrid(updatedPlayer, inventory.width || INVENTORY_WIDTH, inventory.height || INVENTORY_HEIGHT, playerCtx);
+          setInventory({ ...inventory, items: updatedPlayer, grid: newGrid });
+      }
 
-      // Feedback Animation Trigger
       setSearchingItemId(null);
       setJustRevealedId(itemId);
-      
-      setTimeout(() => {
-          setJustRevealedId(null);
-      }, 800);
+      setTimeout(() => setJustRevealedId(null), 800);
   };
 
-  const rebuildGrid = (items: GridItem[], w: number, h: number) => {
+  const rebuildGrid = (items: GridItem[], w: number, h: number, ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT') => {
       let g = createEmptyGrid(w, h);
       items.forEach(i => {
-          if (canPlaceItem(g, i, i.x, i.y)) { 
+          if (canPlaceItem(g, i, i.x, i.y, undefined, ctx)) { 
               g = placeItemInGrid(g, i, i.x, i.y);
           }
       });
@@ -510,7 +500,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const rebuildLootGrid = (items: GridItem[]) => {
       const w = externalInventory ? externalInventory.width : CONTAINER_WIDTH;
       const h = externalInventory ? externalInventory.height : CONTAINER_HEIGHT;
-      const g = rebuildGrid(items, w, h);
+      const g = rebuildGrid(items, w, h, lootCtx);
       setLootGrid(g);
   };
 
@@ -694,10 +684,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                        tempItems = gridItems.filter(i => i.id !== dragState.item.id);
                    }
                    
-                   const tempGrid = rebuildGrid(tempItems, gW, gH);
+                   const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = targetGridType === 'LOOT' ? lootCtx : playerCtx;
+                   const tempGrid = rebuildGrid(tempItems, gW, gH, ctx);
                    const itemForCheck = dragState.item;
                    
-                   const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = targetGridType === 'LOOT' ? 'WAREHOUSE' : (playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT');
                    const isStandardValid = canPlaceItem(tempGrid, itemForCheck, cellX, cellY, targetUnlocked, ctx) && checkPlayerLock(targetGridType, itemForCheck, cellX, cellY);
                    
                    if (!isStandardValid) {
@@ -875,47 +865,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       targetY: number, 
       movedItems: GridItem[]
   ) => {
-      // 1. Get the list of items for the target grid
       let currentItems = targetGrid === 'PLAYER' ? [...inventory.items] : [...lootItems];
 
-      // 2. Remove dragged item from source if it was in the same grid (to avoid duplication logic issues)
       if (sourceGrid === targetGrid) {
           currentItems = currentItems.filter(i => i.id !== draggedItem.id);
       } else {
-          // If cross-grid, remove from source grid now
            if (sourceGrid === 'PLAYER') {
-              setInventory(prev => {
-                  const items = prev.items.filter(i => i.id !== draggedItem.id);
-                  return { ...prev, items, grid: rebuildGrid(items, prev.width, prev.height) };
-              });
+              const items = inventory.items.filter(i => i.id !== draggedItem.id);
+              setInventory({ ...inventory, items, grid: rebuildGrid(items, inventory.width || INVENTORY_WIDTH, inventory.height || INVENTORY_HEIGHT, playerCtx) });
            } else {
-              setLootItems(prev => {
-                  const items = prev.filter(i => i.id !== draggedItem.id);
-                  rebuildLootGrid(items);
-                  return items;
-              });
+              const items = lootItems.filter(i => i.id !== draggedItem.id);
+              const w = externalInventory ? externalInventory.width : CONTAINER_WIDTH;
+              const h = externalInventory ? externalInventory.height : CONTAINER_HEIGHT;
+              setLootItems(items);
+              setLootGrid(rebuildGrid(items, w, h, lootCtx));
            }
       }
 
-      // 3. Update coordinates of displaced items in the list
       const movedMap = new Map(movedItems.map(i => [i.id, i]));
-      const updatedItems = currentItems.map(item => {
-          if (movedMap.has(item.id)) {
-              return movedMap.get(item.id)!;
-          }
-          return item;
-      });
+      const updatedItems = currentItems.map(item => movedMap.has(item.id) ? movedMap.get(item.id)! : item);
 
-      // 4. Add the dragged item to the list at new pos
       const newItem = { ...draggedItem, x: targetX, y: targetY };
       updatedItems.push(newItem);
 
-      // 5. Commit to State
       if (targetGrid === 'PLAYER') {
-          setInventory(prev => ({ ...prev, items: updatedItems, grid: rebuildGrid(updatedItems, prev.width, prev.height) }));
+          setInventory({ ...inventory, items: updatedItems, grid: rebuildGrid(updatedItems, inventory.width || INVENTORY_WIDTH, inventory.height || INVENTORY_HEIGHT, playerCtx) });
       } else {
+          const w = externalInventory ? externalInventory.width : CONTAINER_WIDTH;
+          const h = externalInventory ? externalInventory.height : CONTAINER_HEIGHT;
           setLootItems(updatedItems);
-          rebuildLootGrid(updatedItems);
+          setLootGrid(rebuildGrid(updatedItems, w, h, lootCtx));
       }
       setSelectedItem(newItem);
   };
@@ -923,130 +902,93 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const mergeItems = (sourceItem: GridItem, targetItem: GridItem, sourceGrid: 'PLAYER' | 'LOOT', targetGrid: 'PLAYER' | 'LOOT') => {
       const quantityToAdd = sourceItem.quantity || 1;
       
-      // Update Target Grid (Where targetItem lives)
-      const updateTargetFn = (prevItems: GridItem[]) => prevItems.map(i => {
-          if (i.id === targetItem.id) {
-              return { ...i, quantity: (i.quantity || 1) + quantityToAdd };
-          }
-          return i;
-      });
+      let newPlayerItems = [...inventory.items];
+      let newPlayerGrid = [...inventory.grid];
+      let newLootItems = [...lootItems];
+      let newLootGrid = [...lootGrid];
 
-      if (targetGrid === 'PLAYER') {
-          setInventory(prev => ({ ...prev, items: updateTargetFn(prev.items) }));
+      if (sourceGrid === 'PLAYER') {
+          newPlayerItems = newPlayerItems.filter(i => i.id !== sourceItem.id);
+          newPlayerGrid = removeItemFromGrid(newPlayerGrid, sourceItem.id);
       } else {
-          setLootItems(prev => updateTargetFn(prev));
+          newLootItems = newLootItems.filter(i => i.id !== sourceItem.id);
+          newLootGrid = removeItemFromGrid(newLootGrid, sourceItem.id);
       }
 
-      // Remove Source Item
-      if (sourceGrid === 'PLAYER') {
-          setInventory(prev => {
-              const newItems = prev.items.filter(i => i.id !== sourceItem.id);
-              const newGrid = removeItemFromGrid(prev.grid, sourceItem.id);
-              return { ...prev, items: newItems, grid: newGrid };
-          });
+      if (targetGrid === 'PLAYER') {
+          newPlayerItems = newPlayerItems.map(i => i.id === targetItem.id ? { ...i, quantity: (i.quantity || 1) + quantityToAdd } : i);
       } else {
-          setLootItems(prev => {
-              const newItems = prev.filter(i => i.id !== sourceItem.id);
-              const newGrid = removeItemFromGrid(lootGrid, sourceItem.id);
-              setLootGrid(newGrid); // Ensure grid updates
-              return newItems;
-          });
+          newLootItems = newLootItems.map(i => i.id === targetItem.id ? { ...i, quantity: (i.quantity || 1) + quantityToAdd } : i);
+      }
+
+      if (sourceGrid === 'PLAYER' || targetGrid === 'PLAYER') {
+          setInventory({ ...inventory, items: newPlayerItems, grid: newPlayerGrid });
+      }
+      if (sourceGrid === 'LOOT' || targetGrid === 'LOOT') {
+          setLootItems(newLootItems);
+          setLootGrid(newLootGrid);
       }
       setSelectedItem(null);
   };
 
- 
   const moveItem = (item: GridItem, source: 'PLAYER' | 'LOOT', target: 'PLAYER' | 'LOOT', x: number, y: number) => {
-      const newItem = { ...item, x, y }; // 彻底保留其当前的所有状态（包括真实的 rotation 和 shape）
+      const newItem = { ...item, x, y }; 
       
-      // Update Source List
+      let newPlayerItems = [...inventory.items];
+      let newPlayerGrid = [...inventory.grid];
+      let newLootItems = [...lootItems];
+      let newLootGrid = [...lootGrid];
+
       if (source === 'PLAYER') {
-          const newItems = inventory.items.filter(i => i.id !== item.id);
-          const newGrid = removeItemFromGrid(inventory.grid, item.id);
-          setInventory({ ...inventory, items: newItems, grid: newGrid });
+          newPlayerItems = newPlayerItems.filter(i => i.id !== item.id);
+          newPlayerGrid = removeItemFromGrid(newPlayerGrid, item.id);
       } else {
-          const newItems = lootItems.filter(i => i.id !== item.id);
-          const newGrid = removeItemFromGrid(lootGrid, item.id);
-          setLootItems(newItems);
-          setLootGrid(newGrid);
+          newLootItems = newLootItems.filter(i => i.id !== item.id);
+          newLootGrid = removeItemFromGrid(newLootGrid, item.id);
       }
 
-      // Add to Target List (Logic allows cross-moving if grids update sequentially in state)
-      
-      if (source === target) {
-          // Same Grid Move
-          if (target === 'PLAYER') {
-             setInventory(prev => {
-                 const without = prev.items.filter(i => i.id !== item.id);
-                 const gridWithout = removeItemFromGrid(prev.grid, item.id);
-                 // Place
-                 const gridWith = placeItemInGrid(gridWithout, newItem, x, y);
-                 return { ...prev, items: [...without, newItem], grid: gridWith };
-             });
-          } else {
-             setLootItems(prev => {
-                 const without = prev.filter(i => i.id !== item.id);
-                 return [...without, newItem];
-             });
-             setLootGrid(prev => {
-                 const gridWithout = removeItemFromGrid(prev, item.id);
-                 return placeItemInGrid(gridWithout, newItem, x, y);
-             });
-          }
+      if (target === 'PLAYER') {
+          newPlayerGrid = placeItemInGrid(newPlayerGrid, newItem, x, y);
+          newPlayerItems.push(newItem);
       } else {
-          // Cross Grid Move
-          if (target === 'PLAYER') {
-              setInventory(prev => {
-                  const gridWith = placeItemInGrid(prev.grid, newItem, x, y);
-                  return { ...prev, items: [...prev.items, newItem], grid: gridWith };
-              });
-          } else {
-               setLootItems(prev => [...prev, newItem]);
-               setLootGrid(prev => {
-                   return placeItemInGrid(prev, newItem, x, y);
-               });
-          }
+          newLootGrid = placeItemInGrid(newLootGrid, newItem, x, y);
+          newLootItems.push(newItem);
       }
-      
-      setSelectedItem(newItem); // Keep selection
+
+      if (source === 'PLAYER' || target === 'PLAYER') {
+          setInventory({ ...inventory, items: newPlayerItems, grid: newPlayerGrid });
+      }
+      if (source === 'LOOT' || target === 'LOOT') {
+          setLootItems(newLootItems);
+          setLootGrid(newLootGrid);
+      }
+      setSelectedItem(newItem);
   };
 
   // --- ACTIONS ---
   const handleRotate = () => {
     if (!selectedItem || isCombat) return;
     
-    // 1. Calculate new rotation/shape
     const nextRot = (selectedItem.rotation + 90) % 360 as 0 | 90 | 180 | 270;
     const dummyItem = { ...selectedItem, rotation: nextRot };
     const newShape = getRotatedShape(dummyItem); 
     
-    // 2. Prepare grid environment
     const isPlayerInventory = inventory.items.some(i => i.id === selectedItem.id);
     const gridData = isPlayerInventory ? inventory.grid : lootGrid;
     
-    // Remove self from grid temporarily to allow rotation in place
     const tempGrid = removeItemFromGrid(gridData, selectedItem.id);
     const tempItem = { ...selectedItem, rotation: nextRot, shape: newShape };
     
-    // 3. SMART ROTATION (Wall Kicks with extended range)
-    // Try original position first, then try offsets (up, left, right, down, diagonals)
     const offsets = [
-        [0, 0],   // Center
-        [-1, 0],  // Left
-        [1, 0],   // Right
-        [0, -1],  // Up
-        [0, 1],   // Down
-        [-1, -1], // Up-Left
-        [1, -1],  // Up-Right
-        [-1, 1],  // Down-Left
-        [1, 1],   // Down-Right
-        [-2, 0], [2, 0], [0, -2], [0, 2] // Extra range
+        [0, 0], [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-1, -1], [1, -1], [-1, 1], [1, 1],
+        [-2, 0], [2, 0], [0, -2], [0, 2]
     ];
 
     let foundX = -1;
     let foundY = -1;
     const targetUnlocked = !isPlayerInventory ? externalInventory?.unlockedRows : undefined;
-    const ctx: 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT' = !isPlayerInventory ? 'WAREHOUSE' : (playerClass === 'COMMANDER' ? 'COMMANDER' : 'AGENT');
+    const ctx = !isPlayerInventory ? lootCtx : playerCtx;
 
     for (const [dx, dy] of offsets) {
         const testX = selectedItem.x + dx;
@@ -1061,24 +1003,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     if (foundX !== -1) {
         setRotateError(false);
-        // Apply Rotation at found coordinates
-        const updateItem = (i: GridItem) => i.id === selectedItem.id ? { ...i, rotation: nextRot, shape: newShape, x: foundX, y: foundY } : i;
+        const newItem = { ...selectedItem, rotation: nextRot, shape: newShape, x: foundX, y: foundY };
         
         if (isPlayerInventory) {
-             setInventory(prev => {
-                 const updatedItems = prev.items.map(updateItem);
-                 const updatedGrid = rebuildGrid(updatedItems, prev.width, prev.height);
-                 return { ...prev, items: updatedItems, grid: updatedGrid };
-             });
+             const updatedItems = inventory.items.map(i => i.id === selectedItem.id ? newItem : i);
+             const updatedGrid = rebuildGrid(updatedItems, inventory.width || INVENTORY_WIDTH, inventory.height || INVENTORY_HEIGHT, playerCtx);
+             setInventory({ ...inventory, items: updatedItems, grid: updatedGrid });
         } else {
-             setLootItems(prev => {
-                 const updatedItems = prev.map(updateItem);
-                 rebuildLootGrid(updatedItems);
-                 return updatedItems;
-             });
+             const updatedItems = lootItems.map(i => i.id === selectedItem.id ? newItem : i);
+             const w = externalInventory ? externalInventory.width : CONTAINER_WIDTH;
+             const h = externalInventory ? externalInventory.height : CONTAINER_HEIGHT;
+             const updatedGrid = rebuildGrid(updatedItems, w, h, lootCtx);
+             setLootItems(updatedItems);
+             setLootGrid(updatedGrid);
         }
-        // 核心修复：移除了导致程序崩溃的 newOriginalShape 变量
-        setSelectedItem(prev => prev ? { ...prev, rotation: nextRot, shape: newShape, x: foundX, y: foundY } : null);
+        setSelectedItem(newItem);
     } else {
         setRotateError(true);
         setTimeout(() => setRotateError(false), 2000);
@@ -1087,19 +1026,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const handleTrash = () => {
      if (!selectedItem || isCombat) return;
-     // Remove
      if (inventory.items.some(i => i.id === selectedItem.id)) {
-         setInventory(prev => {
-             const newItems = prev.items.filter(i => i.id !== selectedItem.id);
-             const newGrid = removeItemFromGrid(prev.grid, selectedItem.id);
-             return { ...prev, items: newItems, grid: newGrid };
-         });
+         const newItems = inventory.items.filter(i => i.id !== selectedItem.id);
+         const newGrid = removeItemFromGrid(inventory.grid, selectedItem.id);
+         setInventory({ ...inventory, items: newItems, grid: newGrid });
      } else {
-         setLootItems(prev => {
-             const newItems = prev.filter(i => i.id !== selectedItem.id);
-             rebuildLootGrid(newItems);
-             return newItems;
-         });
+         const newItems = lootItems.filter(i => i.id !== selectedItem.id);
+         const newGrid = removeItemFromGrid(lootGrid, selectedItem.id);
+         setLootItems(newItems);
+         setLootGrid(newGrid);
      }
      setSelectedItem(null);
   };
@@ -1108,7 +1043,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       if (selectedItem && selectedItem.type === 'CONSUMABLE' && onConsume) {
           onConsume(selectedItem);
 
-          // Remove Logic with Stacking Support
           const removeFromList = (items: GridItem[]) => {
               return items.map(i => {
                   if (i.id === selectedItem.id) {
@@ -1119,26 +1053,24 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           };
 
           if (inventory.items.some(i => i.id === selectedItem.id)) {
-              setInventory(prev => {
-                  const newItems = removeFromList(prev.items);
-                  // Rebuild grid completely to reflect removal/update
-                  const newGrid = rebuildGrid(newItems, prev.width, prev.height);
-                  return { ...prev, items: newItems, grid: newGrid };
-              });
-              // Update selected item if it still exists (quantity > 0)
+              const newItems = removeFromList(inventory.items);
+              const newGrid = rebuildGrid(newItems, inventory.width || INVENTORY_WIDTH, inventory.height || INVENTORY_HEIGHT, playerCtx);
+              setInventory({ ...inventory, items: newItems, grid: newGrid });
+              
               if ((selectedItem.quantity || 1) > 1) {
-                  setSelectedItem(prev => prev ? { ...prev, quantity: (prev.quantity || 1) - 1 } : null);
+                  setSelectedItem({ ...selectedItem, quantity: (selectedItem.quantity || 1) - 1 });
               } else {
                   setSelectedItem(null);
               }
           } else if (lootItems.some(i => i.id === selectedItem.id)) {
-               setLootItems(prev => {
-                   const newItems = removeFromList(prev);
-                   rebuildLootGrid(newItems);
-                   return newItems;
-               });
+               const newItems = removeFromList(lootItems);
+               const w = externalInventory ? externalInventory.width : CONTAINER_WIDTH;
+               const h = externalInventory ? externalInventory.height : CONTAINER_HEIGHT;
+               setLootItems(newItems);
+               setLootGrid(rebuildGrid(newItems, w, h, lootCtx));
+               
                if ((selectedItem.quantity || 1) > 1) {
-                   setSelectedItem(prev => prev ? { ...prev, quantity: (prev.quantity || 1) - 1 } : null);
+                   setSelectedItem({ ...selectedItem, quantity: (selectedItem.quantity || 1) - 1 });
                } else {
                    setSelectedItem(null);
                }
