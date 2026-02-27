@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { MetaState, ResourceType, BuildingType, Character, InventoryState } from '../../types';
 import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart } from 'lucide-react';
 import { InventoryView } from './InventoryView';
-import { INVENTORY_WIDTH, INVENTORY_HEIGHT } from '../../constants';
+import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE } from '../../constants'; // 引入战利品表以生成悬赏
 import { createEmptyGrid, removeItemFromGrid } from '../../utils/gridLogic';
 import { GridItem } from '../../types';
 
@@ -21,7 +21,28 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const [activeTab, setActiveTab] = useState<Tab>('START');
   const [bodySubTab, setBodySubTab] = useState<BodySubTab>('STATUS');
   const [selectedCharId, setSelectedCharId] = useState<string>(metaState.roster[0]?.id || '');
-  const [isRecruiting, setIsRecruiting] = useState(false); // 新增：招募克隆仓动画状态
+  
+  // 招募克隆仓动画与确认面板状态
+  const [isRecruiting, setIsRecruiting] = useState(false); 
+  const [recruitmentResult, setRecruitmentResult] = useState<Character | null>(null);
+
+  // 黑市悬赏组合订单生成逻辑 (每次进入营地生成3个动态订单)
+  const [bounties, setBounties] = useState<any[]>(() => {
+      const b = [];
+      for(let i=0; i<3; i++) {
+          const reqCount = Math.floor(Math.random() * 2) + 1; 
+          const reqs = [];
+          let reward = 0;
+          for(let j=0; j<reqCount; j++) {
+              const template = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
+              const qty = Math.floor(Math.random() * 3) + 1;
+              reqs.push({ name: template.name, quantity: qty, type: template.type });
+              reward += (template.value || 10) * qty * 1.5; // 组合订单给予 1.5倍 溢价
+          }
+          b.push({ id: `bounty-${Date.now()}-${i}`, requirements: reqs, reward: Math.floor(reward) });
+      }
+      return b;
+  });
 
   const selectedChar = metaState.roster.find(c => c.id === selectedCharId) || metaState.roster[0];
 
@@ -111,41 +132,64 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   );
 
   const renderTradeTab = () => {
-      // 获取仓库里所有有价值的物品
-      const sellableItems = metaState.warehouse.items.filter(i => (i.value || 0) > 0);
-      
-      const handleSellItem = (item: GridItem) => {
-          setMetaState(prev => {
-              const newItems = prev.warehouse.items.filter(i => i.id !== item.id);
-              const newGrid = removeItemFromGrid(prev.warehouse.grid, item.id);
-              return {
-                  ...prev,
-                  resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) + (item.value || 0) * (item.quantity || 1) },
-                  warehouse: { ...prev.warehouse, items: newItems, grid: newGrid }
-              };
-          });
-      };
+      const currentItems = metaState.warehouse.items;
 
-      const handleSellAll = () => {
-          if (sellableItems.length === 0) return;
-          const totalValue = sellableItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
-          setMetaState(prev => {
-              const newItems = prev.warehouse.items.filter(i => !i.value || i.value <= 0);
-              let newGrid = prev.warehouse.grid;
-              sellableItems.forEach(i => { newGrid = removeItemFromGrid(newGrid, i.id); });
-              return {
-                  ...prev,
-                  resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) + totalValue },
-                  warehouse: { ...prev.warehouse, items: newItems, grid: newGrid }
-              };
+      const handleFulfillBounty = (bounty: any) => {
+          // 1. 检查是否满足订单所有条件
+          let canFulfill = true;
+          for(let req of bounty.requirements) {
+              const owned = currentItems.filter(i => i.name === req.name).reduce((acc, i) => acc + (i.quantity || 1), 0);
+              if (owned < req.quantity) {
+                  canFulfill = false;
+                  break;
+              }
+          }
+          if (!canFulfill) return;
+          
+          // 2. 扣除物品逻辑
+          let newGrid = [...metaState.warehouse.grid];
+          let newItems = [...currentItems];
+          
+          for(let req of bounty.requirements) {
+              let needed = req.quantity;
+              for(let i = newItems.length - 1; i >= 0; i--) {
+                  if (needed <= 0) break;
+                  if (newItems[i].name === req.name) {
+                      const qty = newItems[i].quantity || 1;
+                      if (qty <= needed) {
+                          needed -= qty;
+                          newGrid = removeItemFromGrid(newGrid, newItems[i].id);
+                          newItems.splice(i, 1);
+                      } else {
+                          newItems[i] = { ...newItems[i], quantity: qty - needed };
+                          needed = 0;
+                      }
+                  }
+              }
+          }
+          
+          // 3. 结算奖励并刷新单条订单
+          setMetaState(prev => ({
+              ...prev,
+              resources: { ...prev.resources, GOLD: (prev.resources[ResourceType.GOLD] || 0) + bounty.reward },
+              warehouse: { ...prev.warehouse, items: newItems, grid: newGrid }
+          }));
+          
+          setBounties(prev => {
+              const newList = prev.filter(b => b.id !== bounty.id);
+              const template = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
+              const qty = Math.floor(Math.random() * 3) + 1;
+              const reward = Math.floor((template.value || 10) * qty * 1.5);
+              newList.push({ id: `bounty-${Date.now()}`, requirements: [{ name: template.name, quantity: qty, type: template.type }], reward });
+              return newList;
           });
       };
 
       return (
           <div className="flex flex-col items-center gap-6 w-full max-w-2xl animate-fade-in p-6 mx-auto h-full">
             <div className="text-center space-y-1 shrink-0">
-                <h2 className="text-2xl font-display font-bold text-stone-300">黑市交易</h2>
-                <p className="text-xs text-stone-500">出售局内带出的高价值遗物获取资金</p>
+                <h2 className="text-2xl font-display font-bold text-stone-300 tracking-widest">黑市悬赏协议</h2>
+                <p className="text-xs text-stone-500">提交指定物资组合，以获取高额佣金溢价</p>
             </div>
             
             <div className="w-full flex justify-between items-center bg-stone-900/80 p-4 rounded-xl border border-stone-800 shrink-0 shadow-lg">
@@ -153,43 +197,44 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                     <LucideCoins className="text-dungeon-gold" size={24} />
                     <span className="text-xl font-bold text-stone-200">{metaState.resources[ResourceType.GOLD] || 0}</span>
                 </div>
-                <button 
-                    className={`px-6 py-2 rounded font-bold shadow-lg transition-all border ${sellableItems.length > 0 ? 'bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border-dungeon-gold' : 'bg-stone-800 text-stone-600 border-stone-700 cursor-not-allowed'}`}
-                    onClick={handleSellAll}
-                    disabled={sellableItems.length === 0}
-                >
-                    一键出售全部高价值物品
-                </button>
+                <div className="text-xs text-stone-500 italic">常规变现请前往【仓库】选中单件物品直接折价出售</div>
             </div>
 
-            <div className="w-full flex-1 overflow-y-auto bg-stone-950/50 border border-stone-800 rounded-xl p-4">
-                {sellableItems.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-stone-600 italic">
-                        仓库中没有可出售的高价值物品...
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {sellableItems.map(item => (
-                            <div key={item.id} className="flex justify-between items-center p-3 bg-stone-900 border border-stone-700 rounded-lg hover:border-stone-500 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded ${item.color?.replace('border', 'bg') || 'bg-stone-600'} flex items-center justify-center text-xs text-white shadow-inner`}>
-                                        {item.name.charAt(0)}
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-bold text-stone-300">{item.name} {item.quantity && item.quantity > 1 ? `x${item.quantity}` : ''}</span>
-                                        <span className="text-[10px] text-stone-500">{item.type}</span>
-                                    </div>
+            <div className="w-full flex-1 overflow-y-auto space-y-4 px-1 pb-4">
+                {bounties.map(bounty => {
+                    let canFulfill = true;
+                    return (
+                        <div key={bounty.id} className="p-4 bg-stone-900/50 border border-stone-700 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-stone-500 transition-colors shadow-md">
+                            <div className="flex flex-col gap-2 flex-1">
+                                <span className="text-xs font-bold text-stone-400">所需物资清单</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {bounty.requirements.map((req: any, idx: number) => {
+                                        const owned = currentItems.filter(i => i.name === req.name).reduce((acc, i) => acc + (i.quantity || 1), 0);
+                                        if (owned < req.quantity) canFulfill = false;
+                                        return (
+                                            <div key={idx} className={`px-2 py-1 rounded border text-xs flex items-center gap-2 ${owned >= req.quantity ? 'bg-green-900/20 border-green-700 text-green-400' : 'bg-stone-950 border-stone-700 text-stone-500'}`}>
+                                                <span>{req.name}</span>
+                                                <span className="font-mono">{owned}/{req.quantity}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 sm:border-l border-stone-800 pt-3 sm:pt-0 sm:pl-4 min-w-[120px]">
+                                <div className="text-dungeon-gold font-bold flex items-center gap-1">
+                                    <LucideCoins size={14} /> + {bounty.reward} 
                                 </div>
                                 <button 
-                                    className="px-3 py-1 bg-black hover:bg-stone-800 border border-stone-600 rounded text-dungeon-gold text-xs font-bold transition-colors"
-                                    onClick={() => handleSellItem(item)}
+                                    className={`w-full py-2 rounded font-bold text-xs transition-all shadow-lg ${canFulfill ? 'bg-dungeon-gold text-black hover:bg-yellow-400' : 'bg-stone-800 text-stone-600 cursor-not-allowed'}`}
+                                    onClick={() => handleFulfillBounty(bounty)}
+                                    disabled={!canFulfill}
                                 >
-                                    卖出 🪙 {(item.value || 0) * (item.quantity || 1)}
+                                    交付订单
                                 </button>
                             </div>
-                        ))}
-                    </div>
-                )}
+                        </div>
+                    )
+                })}
             </div>
           </div>
       );
@@ -282,7 +327,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                     if ((metaState.resources[ResourceType.GOLD] || 0) >= cost) {
                                         setIsRecruiting(true); // 激活克隆舱动画
                                         
-                                        // 立即扣款，但延迟给角色
+                                        // 立即扣除金币，但延迟发放角色
                                         setMetaState(prev => ({
                                             ...prev,
                                             resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - cost }
@@ -300,12 +345,9 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                                 stats: { maxHp: 100, hp: 100, maxEnergy: 3, energy: 3, baseDamage: 5, baseShield: 0, deck: [] },
                                                 inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
                                             };
-                                            setMetaState(prev => ({
-                                                ...prev,
-                                                roster: [...prev.roster, newAgent]
-                                            }));
-                                            setIsRecruiting(false); // 关闭动画
-                                        }, 2800); // 克隆舱液面上涨的动画时长
+                                            // 暂存招募结果，弹出确认面板等待用户手动收下，不再自动关闭
+                                            setRecruitmentResult(newAgent);
+                                        }, 3000); 
                                     } else {
                                         alert("资金不足！培养标准素体需要 2000 资金。");
                                     }
@@ -437,9 +479,10 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                     externalInventory={metaState.warehouse}
                     setExternalInventory={handleWarehouseUpdate}
                     externalTitle="基地仓库"
+                    setMetaState={setMetaState} // 核心修复：传入此参数后，仓库内物品详情页将显示【出售】按钮！
                     customPlayerHeader={characterSelector}
                     playerLevel={selectedChar.level}
-                    playerClass={selectedChar.class} // 关键：向下层透传当前职业
+                    playerClass={selectedChar.class} 
                 />
             </div>
         </div>
@@ -459,33 +502,65 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   return (
     <div className="w-full h-full flex flex-col bg-dungeon-black text-stone-200 font-serif relative overflow-hidden">
       
-      {/* 炫酷的抽卡/克隆仓沉浸式动画蒙版 */}
+      {/* 炫酷的抽卡/克隆仓沉浸式动画与结果确认蒙版 */}
       {isRecruiting && (
-          <div className="absolute inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center backdrop-blur-sm transition-all duration-500">
-              <div className="relative w-64 h-96 flex flex-col items-center justify-center mt-12">
-                  <style>{`
-                      @keyframes scan-laser { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-                  `}</style>
-                  {/* 培养舱背景 */}
-                  <div className="absolute inset-0 border-4 border-dungeon-gold/30 rounded-t-[100px] rounded-b-xl shadow-[0_0_100px_rgba(202,138,4,0.15)] overflow-hidden bg-stone-900/20">
-                      {/* 扫描激光束 */}
-                      <div className="absolute w-full h-1 bg-dungeon-gold shadow-[0_0_20px_#ca8a04]" style={{ animation: 'scan-laser 2s linear infinite' }}></div>
-                      {/* 培养液注入动画 */}
-                      <div className="absolute bottom-0 w-full bg-dungeon-gold/20 transition-all ease-in-out" style={{ height: '100%', transitionDuration: '2800ms' }}></div>
-                  </div>
-                  
-                  {/* 漂浮的素体图标 */}
-                  <LucideUser size={120} className="text-dungeon-gold z-10 opacity-70 animate-pulse" strokeWidth={1} />
-                  
-                  <div className="absolute -bottom-16 flex flex-col items-center gap-2">
-                      <div className="text-dungeon-gold font-mono tracking-widest animate-pulse font-bold text-lg">
-                          素体合成中...
+          <div className="absolute inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center backdrop-blur-md transition-all duration-500">
+              {recruitmentResult ? (
+                  // 【阶段二】动画完毕，展示新角色并要求手动确认
+                  <div className="relative flex flex-col items-center justify-center animate-fade-in-up mt-12">
+                      <div className="absolute inset-0 bg-dungeon-gold/10 blur-[80px] rounded-full z-0 w-64 h-64"></div>
+                      <div className="relative w-32 h-32 flex items-center justify-center border-4 border-dungeon-gold rounded-full bg-black/50 shadow-[0_0_50px_rgba(202,138,4,0.5)] z-10">
+                          <LucideUser size={80} className="text-dungeon-gold drop-shadow-[0_0_15px_rgba(202,138,4,1)]" />
                       </div>
-                      <div className="text-[10px] text-stone-500 font-mono uppercase">
-                          Initializing Cellular Matrix //
+                      <div className="text-4xl font-display font-bold text-stone-100 tracking-widest mt-8 z-10 drop-shadow-md">
+                          {recruitmentResult.name}
+                      </div>
+                      <div className="flex gap-4 mt-3 z-10">
+                          <span className="px-3 py-1 bg-stone-900 border border-stone-700 text-stone-400 font-mono text-xs rounded uppercase">CLASS: {recruitmentResult.class}</span>
+                          <span className="px-3 py-1 bg-amber-950/50 border border-dungeon-gold/50 text-dungeon-gold font-mono text-xs rounded">LV.{recruitmentResult.level}</span>
+                      </div>
+                      <button 
+                          className="mt-12 px-16 py-4 bg-dungeon-gold text-black font-bold text-lg tracking-widest hover:bg-yellow-400 hover:shadow-[0_0_30px_rgba(250,204,21,0.5)] transition-all z-10 rounded shadow-lg"
+                          onClick={() => {
+                              setMetaState(prev => ({
+                                  ...prev,
+                                  roster: [...prev.roster, recruitmentResult]
+                              }));
+                              setRecruitmentResult(null);
+                              setIsRecruiting(false);
+                          }}
+                      >
+                          确认唤醒
+                      </button>
+                  </div>
+              ) : (
+                  // 【阶段一】气泡上升与激光扫描动画
+                  <div className="relative w-64 h-96 flex flex-col items-center justify-center mt-12 animate-pulse">
+                      <style>{`
+                          @keyframes scan-laser { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+                          @keyframes bubble-rise { 0% { bottom: -10px; transform: translateX(0); opacity: 1; } 100% { bottom: 100%; transform: translateX(-10px); opacity: 0; } }
+                      `}</style>
+                      <div className="absolute inset-0 border-4 border-dungeon-gold/30 rounded-t-[100px] rounded-b-xl shadow-[0_0_100px_rgba(202,138,4,0.15)] overflow-hidden bg-stone-900/20">
+                          <div className="absolute w-2 h-2 rounded-full bg-white/30 left-1/4" style={{ animation: 'bubble-rise 2s ease-in infinite' }}></div>
+                          <div className="absolute w-3 h-3 rounded-full bg-white/30 left-1/2" style={{ animation: 'bubble-rise 1.5s ease-in infinite 0.5s' }}></div>
+                          <div className="absolute w-2 h-2 rounded-full bg-white/30 left-3/4" style={{ animation: 'bubble-rise 2.5s ease-in infinite 0.2s' }}></div>
+                          
+                          <div className="absolute w-full h-1 bg-dungeon-gold shadow-[0_0_20px_#ca8a04]" style={{ animation: 'scan-laser 1.5s linear infinite' }}></div>
+                          <div className="absolute bottom-0 w-full bg-dungeon-gold/30 transition-all ease-in-out" style={{ height: '100%', transitionDuration: '3000ms' }}></div>
+                      </div>
+                      
+                      <LucideUser size={120} className="text-dungeon-gold/50 z-10" strokeWidth={1} style={{ filter: 'blur(2px)' }} />
+                      
+                      <div className="absolute -bottom-20 flex flex-col items-center gap-2">
+                          <div className="text-dungeon-gold font-mono tracking-widest animate-pulse font-bold text-lg drop-shadow-[0_0_10px_rgba(202,138,4,0.8)]">
+                              基因序列重组中...
+                          </div>
+                          <div className="text-[10px] text-stone-500 font-mono uppercase">
+                              Initializing Cellular Matrix // {Math.floor(Math.random()*100)}%
+                          </div>
                       </div>
                   </div>
-              </div>
+              )}
           </div>
       )}
 

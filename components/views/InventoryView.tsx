@@ -1641,20 +1641,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     </div>
                 ) : (
                     <div className="flex items-center justify-between w-full">
-                        <div className="text-[10px] text-stone-500 italic">点击物品查看详情 · 拖拽整理</div>
+                        <div className="flex items-center gap-2">
+                            <div className="text-[10px] text-stone-500 italic">点击物品查看详情 · 拖拽整理</div>
+                            {/* 核心优化：错误提示移至左侧，与提示文本放一起 */}
+                            {storeError && <span className="text-[10px] text-red-400 font-bold animate-pulse bg-red-900/40 px-1.5 py-0.5 rounded border border-red-800 shadow-sm">无法一键入库 (空间不足或过于零散)</span>}
+                        </div>
                         
                         <div className="flex gap-2 items-center">
-                            {/* 新增：一键入库按钮及错误提示 */}
+                            {/* 新增：一键入库按钮 */}
                             {externalTitle === "基地仓库" && inventory.items.length > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <button 
-                                        onClick={handleStoreAll}
-                                        className="flex items-center gap-1 text-[10px] bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border border-dungeon-gold/50 rounded px-2 py-1 transition-colors font-bold shadow-[0_0_10px_rgba(202,138,4,0.2)]"
-                                    >
-                                        <LucidePackage size={12} /> 一键入库
-                                    </button>
-                                    {storeError && <span className="text-[10px] text-red-400 font-bold animate-pulse bg-red-900/40 px-2 py-1 rounded border border-red-800 shadow-lg">空间不足</span>}
-                                </div>
+                                <button 
+                                    onClick={handleStoreAll}
+                                    className="flex items-center gap-1 text-[10px] bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border border-dungeon-gold/50 rounded px-2 py-1 transition-colors font-bold shadow-[0_0_10px_rgba(202,138,4,0.2)]"
+                                >
+                                    <LucidePackage size={12} /> 一键入库
+                                </button>
                             )}
 
                             {/* Test Button for Player Inventory (Only in Base Camp / Warehouse) */}
