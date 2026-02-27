@@ -692,7 +692,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                    
                    if (!isStandardValid) {
                         // Collision detected! Try Smart Arrange
-                        const rearrangement = findSmartArrangement(tempItems, itemForCheck, cellX, cellY, gW, gH, targetUnlocked);
+                        // 核心修复：把 ctx (上下文) 正式传递给自动排列算法
+                        const rearrangement = findSmartArrangement(tempItems, itemForCheck, cellX, cellY, gW, gH, targetUnlocked, ctx);
                         
                         if (rearrangement) {
                             // Smart Arrange Validation (Must respect Player Locks)

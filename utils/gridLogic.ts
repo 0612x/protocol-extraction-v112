@@ -51,6 +51,14 @@ export const canPlaceItem = (
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length || 0;
 
+  // 核心修复：仓库分页截断保护 (每页5行)。
+  // 严禁任何物品跨页放置（如 y=4 占3行延伸至 y=6），强制它必须完整位于一页之内，防止渲染截断。
+  if (context === 'WAREHOUSE') {
+      const startPage = Math.floor(gridY / 5);
+      const endPage = Math.floor((gridY + rows - 1) / 5);
+      if (startPage !== endPage) return false;
+  }
+
   // 智能推断：只有明确是素体/本体，或者未传参且高度正好为5才检查区域限制。仓库彻底解放！
   const isPlayerInventory = context ? (context === 'AGENT' || context === 'COMMANDER') : (gridHeight === 5);
   const isCommander = context === 'COMMANDER';
@@ -176,7 +184,8 @@ export const findSmartArrangement = (
     fixedY: number,
     gridWidth: number,
     gridHeight: number,
-    unlockedRows?: number
+    unlockedRows?: number,
+    context?: GridContext // 核心注入：显式接受上下文
 ): GridItem[] | null => {
     // 1. Identify items colliding with the dragged item at the target position
     const draggedMask = new Set<string>();
@@ -184,6 +193,10 @@ export const findSmartArrangement = (
     
     const collidingIds = new Set<string>();
     let fixedItemFirstZone: 'SAFE' | 'EQUIP' | 'BACKPACK' | null = null;
+
+    // 获取上下文，以确保按照正确的职业区域进行碰撞与挤占判定
+    const isPlayerInventory = context ? (context === 'AGENT' || context === 'COMMANDER') : (gridHeight === 5);
+    const isCommander = context === 'COMMANDER';
     
     const getItemAt = (x: number, y: number, items: GridItem[]) => {
         return items.find(i => {
@@ -209,15 +222,12 @@ export const findSmartArrangement = (
                 if (unlockedRows !== undefined && ty >= unlockedRows) return null; // Locked zone
                 
                 // Zone Logic Check
-                const isWarehouse = gridHeight >= 14;
-                const isPlayerInventory = !isWarehouse;
-                
                 if (isPlayerInventory) {
-                    const currentCellZone = getPlayerZone(tx, ty);
+                    const currentCellZone = getPlayerZone(tx, ty, isCommander ? 0 : 1); // 核心修复：使用正确的等级进行区域判定
                     if (!fixedItemFirstZone) {
                         fixedItemFirstZone = currentCellZone;
                     } else if (currentCellZone !== fixedItemFirstZone) {
-                        return null; // Cannot cross zone
+                        return null; // 严格禁止跨区
                     }
                 }
 
@@ -284,7 +294,8 @@ export const findSmartArrangement = (
                      originalShape: item.originalShape || item.shape
                  };
                  
-                 if (canPlaceItem(tempGrid, testItem, pos.x, pos.y, unlockedRows)) {
+                 // 核心修复：把 context 传递给 canPlaceItem，让被挤占的物品也严格遵守本体/素体的区域规则
+                 if (canPlaceItem(tempGrid, testItem, pos.x, pos.y, unlockedRows, context)) {
                      tempGrid = placeItemInGrid(tempGrid, testItem, pos.x, pos.y);
                      newPositions.push(testItem);
                      placed = true;
