@@ -348,7 +348,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                rotation: 0,
                isIdentified: true, // Identify immediately for player test
                originalShape: template.shape,
-               shape: rectShape,
+               shape: template.shape, // 核心修复：已鉴定的物品必须直接使用真实形状，禁止使用矩形掩码
                quantity: 1
            };
            
@@ -507,6 +507,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   // --- DRAG & DROP LOGIC ---
 
   const handlePointerDown = (e: React.PointerEvent, item: GridItem, sourceGrid: 'PLAYER' | 'LOOT', cellX: number, cellY: number) => {
+          e.stopPropagation(); // 核心修复4：阻止点击事件冒泡，防止选中物品时触发底下的取消选中逻辑
+
           // Allow scrolling for unidentified items (don't prevent default)
           if (item.isIdentified) {
               e.preventDefault();
@@ -1295,6 +1297,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       return (
           <div 
              key={`${x}-${y}`} 
+             onPointerDown={() => setSelectedItem(null)} // 核心修复4：点击空网格背景时，取消当前选中物品
              className={`
                 w-9 h-9 border relative select-none
                 ${isTopLeft || isGhostTopLeft ? 'z-40' : 'z-10'} 
@@ -1316,6 +1319,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     <div 
         ref={containerRef}
         className="w-full h-full flex flex-col items-center justify-start bg-dungeon-black text-stone-300 relative font-serif animate-fade-in touch-none overflow-hidden pt-1"
+        onPointerDown={() => setSelectedItem(null)} // 核心修复：监听全局空白区域点击，清空中部展示栏
     >
       
       <div className="absolute inset-0 bg-noise opacity-5 pointer-events-none"></div>
@@ -1479,7 +1483,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             {customPlayerHeader}
             
             {/* Info / Action Bar */}
-            <div className="min-h-[48px] px-4 py-2 bg-black/40 border-b border-stone-800 mb-2 flex items-center justify-between">
+            <div 
+                className="min-h-[48px] px-4 py-2 bg-black/40 border-b border-stone-800 mb-2 flex items-center justify-between"
+                onPointerDown={(e) => e.stopPropagation()} // 核心修复：拦截点击事件，防止点击旋转/删除时触发底下的全局取消
+            >
                 {selectedItem ? (
                     <div className="flex items-center justify-between w-full gap-2">
                         <div className="flex flex-col overflow-hidden">
@@ -1527,13 +1534,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 )}
             </div>
 
-            <div className="flex-1 overflow-hidden w-full flex justify-center items-center p-2 min-h-0 relative">
+            {/* 核心修复2：加入 min-h-[240px] 锁死容器高度，任凭里面是5x4还是8x5，外层绝不坍缩跳动 */}
+            <div className="flex-1 overflow-hidden w-full flex justify-center items-center p-2 min-h-[240px] relative">
                 <div 
                     ref={playerGridRef}
                     className="grid gap-1 bg-black p-2 border-2 border-stone-700 shadow-2xl relative m-auto transition-all"
                     style={{ gridTemplateColumns: `repeat(${playerClass === 'COMMANDER' ? 5 : INVENTORY_WIDTH}, 36px)` }}
                 >
-                    {/* 动态标记框 - 开启全包围线框及高亮材质 */}
                     {playerClass === 'COMMANDER' ? (
                         <>
                             <div className="absolute top-[8px] left-[8px] w-[76px] h-[36px] border-2 border-dungeon-gold/60 pointer-events-none z-20 flex items-center justify-center p-1 bg-dungeon-gold/10 shadow-[0_0_15px_rgba(202,138,4,0.1)] rounded-sm">
@@ -1555,11 +1562,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 <span className="text-[10px] font-bold text-blue-400/80 uppercase bg-black/80 px-1 rounded border border-blue-500/30">装备区</span>
                             </div>
                             
-                            {/* 素体的倒L型背包区补全（用两个线框拼接成完整包围） */}
-                            <div className="absolute bottom-[8px] right-[8px] w-[196px] h-[116px] border-2 border-stone-400/50 pointer-events-none z-20 flex items-end justify-end p-1 rounded-sm">
+                            {/* 核心修复3：利用 SVG 绘制出完美闭合的不规则倒L型单一边框 */}
+                            <svg className="absolute top-[8px] left-[8px] overflow-visible pointer-events-none z-20" width="316" height="196">
+                                <path d="M 0 120 L 120 120 L 120 80 L 316 80 L 316 196 L 0 196 Z" 
+                                      fill="rgba(0,0,0,0.4)" 
+                                      stroke="rgba(168, 162, 158, 0.6)" 
+                                      strokeWidth="2" 
+                                      strokeLinejoin="round" />
+                            </svg>
+                            <div className="absolute bottom-[8px] right-[8px] pointer-events-none z-20 flex items-end justify-end p-1">
                                 <span className="text-[10px] font-bold text-stone-300 uppercase bg-black/80 px-1.5 py-0.5 rounded shadow-lg border border-stone-600/50">背包区</span>
                             </div>
-                            <div className="absolute bottom-[8px] left-[8px] w-[116px] h-[76px] border-2 border-stone-400/50 pointer-events-none z-20 rounded-sm"></div>
                         </>
                     )}
                     
@@ -1592,19 +1605,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 transformOrigin: 'top left'
             }}
           >
-              <div className="grid gap-px p-1" style={{ gridTemplateColumns: `repeat(${dragState.item.shape[0]?.length || 1}, 36px)` }}>
+              {/* 修复1：使用 gap-1 对齐真实网格的 4px 间距 */}
+              <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${dragState.item.shape[0]?.length || 1}, 36px)` }}>
                   {dragState.item.shape.map((row, r) => 
                      row.map((cell, c) => {
                          // Apply same smart border logic to drag preview
                          let cellStyle = {};
-                         let cellClass = 'bg-transparent';
+                         // 核心修复1：必须给透明占位符赋上宽高，否则 CSS Grid 会把十字形挤成九宫格！
+                         let cellClass = 'w-9 h-9 bg-transparent';
                          
                          if (cell) {
                             const borderStyles = getSmartBorders(dragState.item.shape, r, c);
                             
                             // Simplified colors for drag
                             const baseColor = dragState.item.isIdentified ? dragState.item.color.replace('border ', '') : 'bg-stone-600 border-stone-500';
-                            cellClass = `w-9 h-9 ${baseColor}`;
+                            cellClass = `w-9 h-9 border ${baseColor}`;
                             cellStyle = borderStyles;
                          }
 
@@ -1625,9 +1640,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       {selectedItem && showItemDetails && (
           <>
               {/* 背景透明遮罩：点击任意空白处关闭卡片 */}
-              <div className="fixed inset-0 z-[90]" onClick={() => setShowItemDetails(false)}></div>
+              <div className="fixed inset-0 z-[90]" onPointerDown={() => setShowItemDetails(false)}></div>
               
-              <div className="absolute inset-x-2 bottom-2 z-[100] bg-stone-950/95 backdrop-blur-md border border-stone-700 p-4 rounded-xl shadow-[0_-10px_40px_rgba(0,0,0,0.9)] animate-slide-in-up">
+              <div 
+                  className="absolute inset-x-2 bottom-2 z-[100] bg-stone-950/95 backdrop-blur-md border border-stone-700 p-4 rounded-xl shadow-[0_-10px_40px_rgba(0,0,0,0.9)] animate-slide-in-up"
+                  onPointerDown={(e) => e.stopPropagation()} // 核心修复：防止点击卡片内部信息时触发全局取消
+              >
                   <div className="max-w-md mx-auto relative w-full">
                       <button onClick={() => setShowItemDetails(false)} className="absolute -top-2 -right-2 p-1.5 text-stone-400 hover:text-stone-200 bg-black/60 rounded-full border border-stone-700 transition-colors z-10"><LucideX size={16}/></button>
                       <div className="flex gap-4">
