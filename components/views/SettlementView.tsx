@@ -35,7 +35,7 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ outcome, extract
                  <style>{`
                     @keyframes scan-laser { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
                  `}</style>
-                 <div className="w-full h-1 bg-red-900/50 absolute shadow-[0_0_30px_rgba(220,38,38,1)]" style={{ animation: 'scan-laser 1s linear infinite' }}></div>
+                 <div className="w-full h-1 bg-red-900/50 absolute shadow-[0_0_30px_rgba(220,38,38,1)]" style={{ animation: 'scan-laser 1.5s linear infinite' }}></div>
                  <h2 className="text-4xl md:text-6xl font-display tracking-[0.5em] text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,1)] animate-pulse">SIGNAL</h2>
                  <h2 className="text-3xl md:text-5xl font-display tracking-[0.5em] text-red-900 blur-[1px]">LOST</h2>
                  <p className="text-sm font-mono text-red-800 mt-8 uppercase tracking-widest font-bold">Vital signs: TERMINATED</p>
