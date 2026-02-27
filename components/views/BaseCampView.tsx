@@ -4,6 +4,8 @@ import { MetaState, ResourceType, BuildingType, Character, InventoryState } from
 import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart } from 'lucide-react';
 import { InventoryView } from './InventoryView';
 import { INVENTORY_WIDTH, INVENTORY_HEIGHT } from '../../constants';
+import { createEmptyGrid, removeItemFromGrid } from '../../utils/gridLogic';
+import { GridItem } from '../../types';
 
 interface BaseCampViewProps {
   metaState: MetaState;
@@ -107,17 +109,90 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
       </div>
   );
 
-  const renderTradeTab = () => (
-      <div className="flex flex-col items-center gap-6 w-full max-w-md animate-fade-in p-4">
-        <div className="text-center space-y-1">
-            <h2 className="text-2xl font-display font-bold text-stone-300">黑市交易</h2>
-            <p className="text-xs text-stone-500">TRADE</p>
-        </div>
-        <div className="w-full p-4 bg-stone-900/50 border border-stone-800 rounded text-center text-stone-500 italic">
-            黑市暂未开放...
-        </div>
-      </div>
-  );
+  const renderTradeTab = () => {
+      // 获取仓库里所有有价值的物品
+      const sellableItems = metaState.warehouse.items.filter(i => (i.value || 0) > 0);
+      
+      const handleSellItem = (item: GridItem) => {
+          setMetaState(prev => {
+              const newItems = prev.warehouse.items.filter(i => i.id !== item.id);
+              const newGrid = removeItemFromGrid(prev.warehouse.grid, item.id);
+              return {
+                  ...prev,
+                  resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) + (item.value || 0) * (item.quantity || 1) },
+                  warehouse: { ...prev.warehouse, items: newItems, grid: newGrid }
+              };
+          });
+      };
+
+      const handleSellAll = () => {
+          if (sellableItems.length === 0) return;
+          const totalValue = sellableItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
+          setMetaState(prev => {
+              const newItems = prev.warehouse.items.filter(i => !i.value || i.value <= 0);
+              let newGrid = prev.warehouse.grid;
+              sellableItems.forEach(i => { newGrid = removeItemFromGrid(newGrid, i.id); });
+              return {
+                  ...prev,
+                  resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) + totalValue },
+                  warehouse: { ...prev.warehouse, items: newItems, grid: newGrid }
+              };
+          });
+      };
+
+      return (
+          <div className="flex flex-col items-center gap-6 w-full max-w-2xl animate-fade-in p-6 mx-auto h-full">
+            <div className="text-center space-y-1 shrink-0">
+                <h2 className="text-2xl font-display font-bold text-stone-300">黑市交易</h2>
+                <p className="text-xs text-stone-500">出售局内带出的高价值遗物获取资金</p>
+            </div>
+            
+            <div className="w-full flex justify-between items-center bg-stone-900/80 p-4 rounded-xl border border-stone-800 shrink-0 shadow-lg">
+                <div className="flex items-center gap-2">
+                    <LucideCoins className="text-dungeon-gold" size={24} />
+                    <span className="text-xl font-bold text-stone-200">{metaState.resources[ResourceType.GOLD] || 0}</span>
+                </div>
+                <button 
+                    className={`px-6 py-2 rounded font-bold shadow-lg transition-all border ${sellableItems.length > 0 ? 'bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border-dungeon-gold' : 'bg-stone-800 text-stone-600 border-stone-700 cursor-not-allowed'}`}
+                    onClick={handleSellAll}
+                    disabled={sellableItems.length === 0}
+                >
+                    一键出售全部高价值物品
+                </button>
+            </div>
+
+            <div className="w-full flex-1 overflow-y-auto bg-stone-950/50 border border-stone-800 rounded-xl p-4">
+                {sellableItems.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-stone-600 italic">
+                        仓库中没有可出售的高价值物品...
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {sellableItems.map(item => (
+                            <div key={item.id} className="flex justify-between items-center p-3 bg-stone-900 border border-stone-700 rounded-lg hover:border-stone-500 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded ${item.color?.replace('border', 'bg') || 'bg-stone-600'} flex items-center justify-center text-xs text-white shadow-inner`}>
+                                        {item.name.charAt(0)}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-bold text-stone-300">{item.name} {item.quantity && item.quantity > 1 ? `x${item.quantity}` : ''}</span>
+                                        <span className="text-[10px] text-stone-500">{item.type}</span>
+                                    </div>
+                                </div>
+                                <button 
+                                    className="px-3 py-1 bg-black hover:bg-stone-800 border border-stone-600 rounded text-dungeon-gold text-xs font-bold transition-colors"
+                                    onClick={() => handleSellItem(item)}
+                                >
+                                    卖出 🪙 {(item.value || 0) * (item.quantity || 1)}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+          </div>
+      );
+  };
 
   const renderBodyTab = () => (
     <div className="flex flex-col w-full h-full animate-fade-in">
@@ -182,7 +257,64 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
             )}
 
             {bodySubTab === 'RECRUIT' && (
-                <div className="text-center text-stone-500 italic mt-10">招募系统开发中...</div>
+                <div className="flex flex-col items-center gap-6 mt-8 w-full max-w-2xl animate-fade-in">
+                    <div className="text-center space-y-2">
+                        <h3 className="text-2xl font-display font-bold text-stone-300 tracking-widest">素体克隆中心</h3>
+                        <p className="text-xs text-stone-500">消耗黑市资金培育新的作战素体</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full mt-4">
+                        {/* 标准素体 */}
+                        <div className="p-6 border border-stone-700 hover:border-stone-500 transition-all bg-stone-900/60 rounded-xl flex flex-col items-center gap-4 shadow-lg group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-dungeon-gold/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                            <LucideUser size={48} className="text-stone-400 group-hover:text-stone-300 transition-colors" />
+                            <div className="text-center z-10">
+                                <div className="font-bold text-stone-200 text-lg">标准素体 (OPERATOR)</div>
+                                <div className="text-xs text-stone-500 mt-2">均衡的承载能力，标准的背包物理限制。</div>
+                            </div>
+                            <button 
+                                className="mt-4 w-full py-3 bg-stone-950 hover:bg-dungeon-gold/20 border border-stone-600 hover:border-dungeon-gold text-stone-300 hover:text-dungeon-gold font-bold rounded flex justify-center items-center gap-2 transition-all z-10"
+                                onClick={() => {
+                                    const cost = 2000;
+                                    if ((metaState.resources[ResourceType.GOLD] || 0) >= cost) {
+                                        const newId = `agent-${Date.now()}`;
+                                        const newAgent: Character = {
+                                            id: newId,
+                                            name: `Alpha-${Math.floor(Math.random() * 90) + 10}`,
+                                            class: 'OPERATOR',
+                                            level: 1,
+                                            exp: 0,
+                                            status: 'ALIVE',
+                                            stats: { maxHp: 100, hp: 100, maxEnergy: 3, energy: 3, baseDamage: 5, baseShield: 0, deck: [] },
+                                            inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
+                                        };
+                                        setMetaState(prev => ({
+                                            ...prev,
+                                            resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - cost },
+                                            roster: [...prev.roster, newAgent]
+                                        }));
+                                    } else {
+                                        alert("资金不足！需要 2000 金币。");
+                                    }
+                                }}
+                            >
+                                <LucideCoins size={16} className="text-dungeon-gold" /> 2000 招募
+                            </button>
+                        </div>
+                        
+                        {/* 高阶素体 */}
+                        <div className="p-6 border border-stone-800 bg-black/40 rounded-xl flex flex-col items-center gap-4 shadow-lg opacity-60">
+                            <LucideZap size={48} className="text-stone-600" />
+                            <div className="text-center">
+                                <div className="font-bold text-stone-500 text-lg">高阶素体 (GHOST)</div>
+                                <div className="text-xs text-stone-600 mt-2">特化型战斗核心。需要更高级的科技解锁。</div>
+                            </div>
+                            <button className="mt-4 w-full py-3 bg-stone-900 border border-stone-800 text-stone-700 font-bold rounded cursor-not-allowed">
+                                科技未解锁
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     </div>

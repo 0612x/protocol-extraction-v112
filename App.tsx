@@ -70,15 +70,6 @@ const INITIAL_META_STATE: MetaState = {
       stats: INITIAL_PLAYER,
       inventory: INITIAL_INVENTORY
     },
-    {
-      id: 'char-001',
-      name: 'Alpha-01',
-      class: 'OPERATOR',
-      level: 1,
-      exp: 0,
-      stats: INITIAL_PLAYER,
-      inventory: INITIAL_INVENTORY
-    }
   ]
 };
 

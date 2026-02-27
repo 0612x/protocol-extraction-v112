@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GridItem, InventoryState, MetaState } from '../../types';
 import { INVENTORY_WIDTH, INVENTORY_HEIGHT, SAFE_ZONE_WIDTH, LOOT_TABLE, EQUIPMENT_ROW_COUNT } from '../../constants';
 import { canPlaceItem, placeItemInGrid, removeItemFromGrid, rotateMatrix, createEmptyGrid, findSmartArrangement, getPlayerZone, isPlayerCellUnlocked, getRotatedShape } from '../../utils/gridLogic';
-import { LucideRotateCw, LucideTrash2, LucideBox, LucideSearch, LucideCheckCircle, LucideLoader2, LucideArchive, LucideShieldCheck, LucideLock, LucideInfo, LucideZap, LucideX, LucideScanLine, LucideGrab, LucideCoins, LucideEye, LucidePlus } from 'lucide-react';
+import { LucideRotateCw, LucideTrash2, LucideBox, LucideSearch, LucideCheckCircle, LucideLoader2, LucideArchive, LucideShieldCheck, LucideLock, LucideInfo, LucideZap, LucideX, LucideScanLine, LucideGrab, LucideCoins, LucideEye, LucidePlus, LucidePackage } from 'lucide-react';
 
 interface InventoryViewProps {
   inventory: InventoryState;
@@ -457,6 +457,76 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           setInventory({ ...inventory, items: currentPlayerItems, grid: currentPlayerGrid });
           setLootItems(currentLootItems);
           setLootGrid(currentLootGrid);
+      }
+  };
+
+// 新增：一键转移入库，带有“同生共死”防失败事务保护机制
+  const handleStoreAll = () => {
+      if (!externalInventory || !setExternalInventory) return;
+
+      let currentWarehouseItems = [...externalInventory.items];
+      let currentWarehouseGrid = [...externalInventory.grid];
+      let currentPlayerItems = [...inventory.items];
+      let currentPlayerGrid = [...inventory.grid];
+      let successCount = 0;
+      let failed = false;
+
+      // 备份玩家物品以供遍历
+      const itemsToMove = [...currentPlayerItems];
+
+      for (const item of itemsToMove) {
+          let placed = false;
+          
+          // 优先尝试堆叠
+          if (item.type === 'CONSUMABLE') {
+              for (const wItem of currentWarehouseItems) {
+                  if (wItem.type === 'CONSUMABLE' && wItem.name === item.name) {
+                      wItem.quantity = (wItem.quantity || 1) + (item.quantity || 1);
+                      currentPlayerGrid = removeItemFromGrid(currentPlayerGrid, item.id);
+                      currentPlayerItems = currentPlayerItems.filter(i => i.id !== item.id);
+                      placed = true;
+                      successCount++;
+                      break;
+                  }
+              }
+          }
+
+          // 堆叠失败则寻找空位放置
+          if (!placed) {
+              const wHeight = externalInventory.height;
+              const wWidth = externalInventory.width;
+              
+              for (let y = 0; y < wHeight; y++) {
+                  if (placed) break;
+                  for (let x = 0; x < wWidth; x++) {
+                      // 仓库使用 'WAREHOUSE' 上下文，受解锁行数限制和分页防截断限制
+                      if (canPlaceItem(currentWarehouseGrid, item, x, y, externalInventory.unlockedRows, 'WAREHOUSE')) {
+                          const newItem = { ...item, x, y, rotation: 0, shape: item.originalShape || item.shape, originalShape: item.originalShape || item.shape };
+                          currentWarehouseGrid = placeItemInGrid(currentWarehouseGrid, newItem, x, y);
+                          currentWarehouseItems.push(newItem);
+                          
+                          currentPlayerGrid = removeItemFromGrid(currentPlayerGrid, item.id);
+                          currentPlayerItems = currentPlayerItems.filter(i => i.id !== item.id);
+                          
+                          placed = true;
+                          successCount++;
+                          break;
+                      }
+                  }
+              }
+          }
+
+          if (!placed) {
+              failed = true;
+              break; // 只要有一个物品找不到空位，立刻终止，触发全体失败回滚
+          }
+      }
+
+      if (failed) {
+          alert("【入库失败】仓库空间不足或物品过于零散。\n无法将背包全部清空，请手动整理仓库或部分转移。");
+      } else if (successCount > 0) {
+          setInventory({ ...inventory, items: currentPlayerItems, grid: currentPlayerGrid });
+          setExternalInventory({ ...externalInventory, items: currentWarehouseItems, grid: currentWarehouseGrid });
       }
   };
 
@@ -1537,15 +1607,28 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 ) : (
                     <div className="flex items-center justify-between w-full">
                         <div className="text-[10px] text-stone-500 italic">点击物品查看详情 · 拖拽整理</div>
-                        {/* Test Button for Player Inventory (Only in Base Camp / Warehouse) */}
-                        {externalInventory && (
-                            <button 
-                                onClick={handleAddTestItemToPlayer}
-                                className="flex items-center gap-1 text-[10px] bg-stone-800 hover:bg-stone-700 text-stone-400 px-2 py-1 rounded border border-stone-600"
-                            >
-                                <LucidePlus size={12} /> 测试物资
-                            </button>
-                        )}
+                        
+                        <div className="flex gap-2 items-center">
+                            {/* 新增：一键入库按钮（只有在基地仓库界面且背包有东西时才显示） */}
+                            {externalTitle === "基地仓库" && inventory.items.length > 0 && (
+                                <button 
+                                    onClick={handleStoreAll}
+                                    className="flex items-center gap-1 text-[10px] bg-dungeon-gold/20 hover:bg-dungeon-gold/40 text-dungeon-gold border border-dungeon-gold/50 rounded px-2 py-1 transition-colors font-bold shadow-[0_0_10px_rgba(202,138,4,0.2)]"
+                                >
+                                    <LucidePackage size={12} /> 一键入库
+                                </button>
+                            )}
+
+                            {/* Test Button for Player Inventory (Only in Base Camp / Warehouse) */}
+                            {externalInventory && (
+                                <button 
+                                    onClick={handleAddTestItemToPlayer}
+                                    className="flex items-center gap-1 text-[10px] bg-stone-800 hover:bg-stone-700 text-stone-400 px-2 py-1 rounded border border-stone-600"
+                                >
+                                    <LucidePlus size={12} /> 测试物资
+                                </button>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
