@@ -1456,18 +1456,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                         onClick={handleAddTestLoot}
                                         className="flex items-center gap-1 text-[10px] bg-stone-800 hover:bg-stone-700 text-stone-400 px-2 py-1 rounded border border-stone-600"
                                     >
-                                        <LucidePlus size={12} /> 测试
+                                        <LucidePlus size={12} /> 测试物资
                                     </button>
                                 )}
-                                {/* Take All Button - Only in Loot Phase */}
-                                {isLootPhase && !externalInventory && lootItems.some(i => i.isIdentified) && (
-                                    <button 
-                                        onClick={handleTakeAll}
-                                        className="flex items-center gap-1 text-[10px] bg-stone-800 hover:bg-stone-700 text-dungeon-gold px-2 py-1 rounded border border-stone-600"
-                                    >
-                                        <LucideGrab size={12} /> 全部拾取
-                                    </button>
-                                )}
+                                {/* 核心优化：已根据要求移除局内战利品箱的一键拾取功能，强化背包整理的博弈感 */}
                             </div>
                         </div>
                         

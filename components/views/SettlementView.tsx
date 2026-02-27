@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { GridItem } from '../../types';
 import { LucideCheckCircle, LucideSkull, LucideArchive, LucideAlertTriangle } from 'lucide-react';
 
@@ -12,6 +12,39 @@ interface SettlementViewProps {
 }
 
 export const SettlementView: React.FC<SettlementViewProps> = ({ outcome, extractedItems, lostItems, totalValue, isCommander, onConfirm }) => {
+  const [introFinished, setIntroFinished] = useState(false);
+
+  // 控制 3 秒的黑屏沉浸式动画
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroFinished(true), 1500); 
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!introFinished) {
+    return (
+      <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black overflow-hidden pointer-events-none">
+         {outcome === 'VICTORY' ? (
+             <div className="flex flex-col items-center gap-6 animate-fade-in-up">
+                 <div className="w-24 h-1 bg-dungeon-gold/80 mb-4 shadow-[0_0_20px_rgba(202,138,4,1)]"></div>
+                 <h2 className="text-4xl md:text-5xl font-display tracking-[0.5em] text-dungeon-gold drop-shadow-[0_0_15px_rgba(202,138,4,0.8)]">EXTRACTION</h2>
+                 <h2 className="text-3xl md:text-4xl font-display tracking-[0.5em] text-stone-300">COMPLETE</h2>
+                 <p className="text-sm font-mono text-stone-400 mt-8 animate-pulse tracking-widest">UPLOADING PAYLOAD...</p>
+             </div>
+         ) : (
+             <div className="flex flex-col items-center gap-6 animate-fade-in">
+                 <style>{`
+                    @keyframes scan-laser { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+                 `}</style>
+                 <div className="w-full h-1 bg-red-900/50 absolute shadow-[0_0_30px_rgba(220,38,38,1)]" style={{ animation: 'scan-laser 1s linear infinite' }}></div>
+                 <h2 className="text-4xl md:text-6xl font-display tracking-[0.5em] text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,1)] animate-pulse">SIGNAL</h2>
+                 <h2 className="text-3xl md:text-5xl font-display tracking-[0.5em] text-red-900 blur-[1px]">LOST</h2>
+                 <p className="text-sm font-mono text-red-800 mt-8 uppercase tracking-widest font-bold">Vital signs: TERMINATED</p>
+             </div>
+         )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full w-full bg-stone-950 text-stone-200 animate-fade-in p-6 overflow-y-auto">
       <div className="text-center mt-12 mb-8 space-y-4">

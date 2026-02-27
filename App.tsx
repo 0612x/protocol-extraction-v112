@@ -75,6 +75,7 @@ const INITIAL_META_STATE: MetaState = {
 
 export default function App() {
   const [phase, setPhase] = useState<GamePhase>('MENU');
+  const [appTransition, setAppTransition] = useState<'NONE' | 'DYING' | 'EXTRACTING'>('NONE'); // 核心优化：全局过渡动画状态
   const [metaState, setMetaState] = useState<MetaState>(() => {
       // 保证初始有 5 行 (第一页) 仓库解锁
       const init = { ...INITIAL_META_STATE };
@@ -215,76 +216,87 @@ export default function App() {
   };
 
   const handleLoseCombat = () => {
-    const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
-    const isCommander = activeChar.class === 'COMMANDER';
-    const pLevel = isCommander ? 0 : activeChar.level;
+    setAppTransition('DYING'); // 触发死亡第一阶段电影级过渡
 
-    const safeItems: GridItem[] = [];
-    const lostItems: GridItem[] = [];
+    // 延迟 2.5 秒执行结算逻辑，等待黑屏渐变动画播完
+    setTimeout(() => {
+        const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+        const isCommander = activeChar.class === 'COMMANDER';
+        const pLevel = isCommander ? 0 : activeChar.level;
 
-    // 严苛过滤：任何一个方块（1）不在 SAFE 区，整个物品都会丢失！
-    inventory.items.forEach(item => {
-        let isSafe = true;
-        for (let r = 0; r < item.shape.length; r++) {
-            for (let c = 0; c < (item.shape[0]?.length || 0); c++) {
-                if (item.shape[r][c] === 1) {
-                    if (getPlayerZone(item.x + c, item.y + r, pLevel) !== 'SAFE') {
-                        isSafe = false;
+        const safeItems: GridItem[] = [];
+        const lostItems: GridItem[] = [];
+
+        // 严苛过滤：任何一个方块（1）不在 SAFE 区，整个物品都会丢失！
+        inventory.items.forEach(item => {
+            let isSafe = true;
+            for (let r = 0; r < item.shape.length; r++) {
+                for (let c = 0; c < (item.shape[0]?.length || 0); c++) {
+                    if (item.shape[r][c] === 1) {
+                        if (getPlayerZone(item.x + c, item.y + r, pLevel) !== 'SAFE') {
+                            isSafe = false;
+                        }
                     }
                 }
             }
-        }
-        if (isSafe) safeItems.push(item);
-        else lostItems.push(item);
-    });
-
-    const totalValue = safeItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
-
-    setMetaState(prev => {
-        const newRoster = prev.roster.map(c => {
-            if (c.id === activeCharId) {
-                let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
-                safeItems.forEach(i => {
-                    const itemForPlacement = { ...i, rotation: 0 as const };
-                    newGrid = placeItemInGrid(newGrid, itemForPlacement, i.x, i.y);
-                });
-                return {
-                    ...c,
-                    status: isCommander ? 'ALIVE' : 'DEAD', // 本体永远ALIVE，素体DEAD
-                    inventory: { ...c.inventory, items: safeItems, grid: newGrid }
-                };
-            }
-            return c;
+            if (isSafe) safeItems.push(item);
+            else lostItems.push(item);
         });
-        return { ...prev, roster: newRoster };
-    });
 
-    setRunResult({ outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander });
-    setPhase('SETTLEMENT');
+        const totalValue = safeItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
+
+        setMetaState(prev => {
+            const newRoster = prev.roster.map(c => {
+                if (c.id === activeCharId) {
+                    let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
+                    safeItems.forEach(i => {
+                        const itemForPlacement = { ...i, rotation: 0 as const };
+                        newGrid = placeItemInGrid(newGrid, itemForPlacement, i.x, i.y);
+                    });
+                    return {
+                        ...c,
+                        status: isCommander ? 'ALIVE' : 'DEAD', 
+                        inventory: { ...c.inventory, items: safeItems, grid: newGrid }
+                    };
+                }
+                return c;
+            });
+            return { ...prev, roster: newRoster };
+        });
+
+        setRunResult({ outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander });
+        setPhase('SETTLEMENT');
+        setAppTransition('NONE'); // 状态重置，切入 SettlementView
+    }, 2500);
   };
 
   const handleExtract = () => {
-    const allItems = inventory.items;
-    const totalValue = allItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
-    const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+    setAppTransition('EXTRACTING'); // 触发撤离第一阶段电影级过渡
 
-    setMetaState(prev => {
-        const newRoster = prev.roster.map(c => {
-            if (c.id === activeCharId) {
-                let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
-                allItems.forEach(item => {
-                    const itemForPlacement = { ...item, rotation: 0 as const };
-                    newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
-                });
-                return { ...c, inventory: { ...c.inventory, items: allItems, grid: newGrid } };
-            }
-            return c;
+    setTimeout(() => {
+        const allItems = inventory.items;
+        const totalValue = allItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
+        const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+
+        setMetaState(prev => {
+            const newRoster = prev.roster.map(c => {
+                if (c.id === activeCharId) {
+                    let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
+                    allItems.forEach(item => {
+                        const itemForPlacement = { ...item, rotation: 0 as const };
+                        newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
+                    });
+                    return { ...c, inventory: { ...c.inventory, items: allItems, grid: newGrid } };
+                }
+                return c;
+            });
+            return { ...prev, roster: newRoster };
         });
-        return { ...prev, roster: newRoster };
-    });
-    
-    setRunResult({ outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander: activeChar.class === 'COMMANDER' });
-    setPhase('SETTLEMENT');
+        
+        setRunResult({ outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander: activeChar.class === 'COMMANDER' });
+        setPhase('SETTLEMENT');
+        setAppTransition('NONE');
+    }, 2500);
   };
 
   const startExpedition = (charId?: string) => {
@@ -519,7 +531,7 @@ export default function App() {
           onExtract={handleExtract}
         />
       )}
-      {phase === 'SETTLEMENT' && runResult && (
+    {phase === 'SETTLEMENT' && runResult && (
         <SettlementView 
             outcome={runResult.outcome}
             extractedItems={runResult.extractedItems}
@@ -533,15 +545,45 @@ export default function App() {
         />
       )}
 
-      {/* GOD MODE TOGGLE (Floating Dev Tool) */}
-      <button 
-          onClick={() => setIsGodMode(!isGodMode)}
-          className={`absolute bottom-2 left-2 z-[9999] p-2 rounded-full border-2 text-[10px] font-bold shadow-2xl transition-all ${isGodMode ? 'bg-yellow-600 border-yellow-300 text-black animate-pulse' : 'bg-black/50 border-stone-700 text-stone-600 opacity-30 hover:opacity-100'}`}
-          title="Toggle Invincibility"
-      >
-          <LucideSkull size={16} />
-      </button>
+      {/* 核心优化：全局死亡/撤离第一阶段过场动画 (沉浸式滤镜阻断层) */}
+      {appTransition !== 'NONE' && (
+          <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden">
+              {/* 注意：这里没有写 pointer-events-none，它会充当一块隐形玻璃，绝对防止玩家在死亡渐变期间瞎点报错！ */}
+              <style>{`
+                  @keyframes fade-to-black {
+                      0% { opacity: 0; }
+                      40% { opacity: 0; }
+                      100% { opacity: 1; }
+                  }
+                  @keyframes dramatic-zoom {
+                      0% { transform: scale(1); opacity: 0; filter: blur(4px); }
+                      15% { opacity: 1; filter: blur(0px); }
+                      100% { transform: scale(1.15); opacity: 0; filter: blur(4px); }
+                  }
+              `}</style>
+              
+              {/* 背景强制渐黑，2.5秒后恰好与 SettlementView 的黑底无缝缝合 */}
+              <div className="absolute inset-0 bg-black" style={{ animation: 'fade-to-black 2.5s forwards' }}></div>
+              
+              {appTransition === 'DYING' && (
+                  <>
+                      <div className="absolute inset-0 bg-red-950/30 animate-pulse mix-blend-color-burn"></div>
+                      <div className="text-red-600 text-5xl md:text-7xl font-display font-bold tracking-[0.5em] drop-shadow-[0_0_30px_rgba(220,38,38,1)] z-10 text-center" style={{ animation: 'dramatic-zoom 2.5s forwards' }}>
+                          CRITICAL FAILURE
+                      </div>
+                  </>
+              )}
 
+              {appTransition === 'EXTRACTING' && (
+                  <>
+                      <div className="absolute inset-0 bg-dungeon-gold/20 animate-pulse mix-blend-screen"></div>
+                      <div className="text-dungeon-gold text-4xl md:text-6xl font-display font-bold tracking-[0.5em] drop-shadow-[0_0_30px_rgba(202,138,4,1)] z-10 text-center" style={{ animation: 'dramatic-zoom 2.5s forwards' }}>
+                          UPLINK SECURED
+                      </div>
+                  </>
+              )}
+          </div>
+      )}
     </div>
   );
 }
