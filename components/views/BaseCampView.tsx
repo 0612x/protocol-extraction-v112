@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { MetaState, ResourceType, BuildingType, Character, InventoryState } from '../../types';
+import { MetaState, ResourceType, BuildingType, Character, InventoryState,CardType} from '../../types';
 import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart } from 'lucide-react';
 import { InventoryView } from './InventoryView';
-import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE } from '../../constants'; // 引入战利品表以生成悬赏
+import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS } from '../../constants'; // 引入战利品表以生成悬赏
 import { createEmptyGrid, removeItemFromGrid } from '../../utils/gridLogic';
 import { GridItem } from '../../types';
 
@@ -342,12 +342,26 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                                 level: 1,
                                                 exp: 0,
                                                 status: 'ALIVE',
-                                                stats: { maxHp: 100, hp: 100, maxEnergy: 3, energy: 3, baseDamage: 5, baseShield: 0, deck: [] },
+                                                // 核心修复：完美对齐最新版的微数值框架、状态组 (statuses) 和初始套牌！不再引发白屏报错！
+                                                stats: { 
+                                                    maxHp: 30, 
+                                                    currentHp: 30, 
+                                                    maxEnergy: 3, 
+                                                    energy: 3, 
+                                                    shield: 0,
+                                                    damageBonus: 0,
+                                                    shieldBonus: 0,
+                                                    shieldStart: 0,
+                                                    thorns: 0,
+                                                    deck: [CardType.STRIKE, CardType.BLOCK, CardType.TECH, CardType.MOVE], 
+                                                    blueprints: STARTING_BLUEPRINTS,
+                                                    statuses: {} // 关键修复点：提供空的状态对象，防止读取 CORROSION 时崩溃
+                                                },
                                                 inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
                                             };
                                             // 暂存招募结果，弹出确认面板等待用户手动收下，不再自动关闭
                                             setRecruitmentResult(newAgent);
-                                        }, 3000); 
+                                        }, 3000);
                                     } else {
                                         alert("资金不足！培养标准素体需要 2000 资金。");
                                     }

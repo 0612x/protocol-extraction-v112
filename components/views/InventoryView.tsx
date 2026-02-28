@@ -438,7 +438,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   if (placed) break;
                   for (let x = 0; x < INVENTORY_WIDTH; x++) {
                       if (canPlaceItem(currentPlayerGrid, item, x, y, undefined, playerCtx)) {
-                          const newItem = { ...item, x, y, rotation: 0, shape: item.originalShape, originalShape: item.originalShape };
+                          // 核心修复1：直接平移物品，绝不强行重置为 originalShape 导致物理体积坍缩穿模
+                          const newItem = { ...item, x, y };
                           currentPlayerGrid = placeItemInGrid(currentPlayerGrid, newItem, x, y);
                           currentPlayerItems.push(newItem);
                           
@@ -461,7 +462,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       }
   };
 
-// 新增：一键转移入库，带有“同生共死”防失败事务保护机制
+  // 新增：一键转移入库，带有“同生共死”防失败事务保护机制
   const handleStoreAll = () => {
       if (!externalInventory || !setExternalInventory) return;
 
@@ -472,13 +473,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       let successCount = 0;
       let failed = false;
 
-      // 备份玩家物品以供遍历
       const itemsToMove = [...currentPlayerItems];
 
       for (const item of itemsToMove) {
           let placed = false;
           
-          // 优先尝试堆叠
           if (item.type === 'CONSUMABLE') {
               for (const wItem of currentWarehouseItems) {
                   if (wItem.type === 'CONSUMABLE' && wItem.name === item.name) {
@@ -492,7 +491,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               }
           }
 
-          // 堆叠失败则寻找空位放置
           if (!placed) {
               const wHeight = externalInventory.height;
               const wWidth = externalInventory.width;
@@ -500,9 +498,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               for (let y = 0; y < wHeight; y++) {
                   if (placed) break;
                   for (let x = 0; x < wWidth; x++) {
-                      // 仓库使用 'WAREHOUSE' 上下文，受解锁行数限制和分页防截断限制
                       if (canPlaceItem(currentWarehouseGrid, item, x, y, externalInventory.unlockedRows, 'WAREHOUSE')) {
-                          const newItem = { ...item, x, y, rotation: 0, shape: item.originalShape || item.shape, originalShape: item.originalShape || item.shape };
+                          // 核心修复1：未鉴定物品绝不能被重置形状！直接原样转移，确保实心矩形的物理体积严格占位！
+                          const newItem = { ...item, x, y };
                           currentWarehouseGrid = placeItemInGrid(currentWarehouseGrid, newItem, x, y);
                           currentWarehouseItems.push(newItem);
                           
@@ -519,12 +517,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
           if (!placed) {
               failed = true;
-              break; // 只要有一个物品找不到空位，立刻终止，触发全体失败回滚
+              break; 
           }
       }
 
       if (failed) {
-          // 核心优化1：将生硬的 alert 替换为类似旋转失败的红色闪烁柔性提示
           setStoreError(true);
           setTimeout(() => setStoreError(false), 3000);
       } else if (successCount > 0) {
@@ -1311,15 +1308,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 }}
                 onPointerDown={(e) => handlePointerDown(e, item, gridType, x, y)}
               >
-                 {/* 核心优化：分离容器背景与内容，确保任何尺寸物品下按钮大小绝对一致且不被裁切 */}
+                 {/* 核心修复2：精确剥离多余的 2px 溢出。网格自身的边框宽度与 -1px 完美抵消，绝不向右下侧侵占间隙！ */}
                   {isTopLeft && !item.isIdentified && (
                         <div 
                             className="absolute z-50 flex items-center justify-center pointer-events-auto"
                             style={{
-                                top: '-1px', left: '-1px',
-                                // 精确计算跨越的像素宽度与高度，实现100%全覆盖
-                                width: `calc(${(item.shape[0]?.length || 1)} * 100% + ${(item.shape[0]?.length || 1) - 1} * 4px)`,
-                                height: `calc(${item.shape.length} * 100% + ${item.shape.length - 1} * 4px)`
+                                top: '-1px', 
+                                left: '-1px',
+                                // 完全舍弃 +2，数学上 N个格子 + N-1个间隙的像素总和即为完美外部尺寸
+                                width: `${(item.shape[0]?.length || 1) * CELL_SIZE + ((item.shape[0]?.length || 1) - 1) * CELL_GAP}px`,
+                                height: `${item.shape.length * CELL_SIZE + (item.shape.length - 1) * CELL_GAP}px`
                             }}
                             onClick={() => handleSearchItem(item)}
                         >
