@@ -26,13 +26,13 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const [isRecruiting, setIsRecruiting] = useState(false); 
   const [recruitmentResult, setRecruitmentResult] = useState<Character | null>(null);
 
-  // 黑市交易核心状态
+  // --- 黑市/交易核心系统状态 ---
   const [tradeSubTab, setTradeSubTab] = useState<'BOUNTY' | 'SHOP'>('BOUNTY');
   const [bounties, setBounties] = useState<any[]>([]);
   const [shopItems, setShopItems] = useState<any[]>([]);
-  const [refreshCountdown, setRefreshCountdown] = useState<number>(300); // 默认 5分钟 (300秒)
+  const [refreshCountdown, setRefreshCountdown] = useState<number>(300); // 5分钟倒计时
 
-  // 刷新黑市数据的核心逻辑
+  // 市场货物生成引擎
   const generateMarket = useCallback(() => {
       const newBounties = [];
       for(let i=0; i<3; i++) {
@@ -50,39 +50,32 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
       setBounties(newBounties);
 
       const newShop = [];
-      // 黑市走私只卖消耗品和遗物
       const buyableTemplates = LOOT_TABLE.filter(t => t.type === 'CONSUMABLE' || t.type === 'ARTIFACT');
       for(let i=0; i<4; i++) {
           const template = buyableTemplates[Math.floor(Math.random() * buyableTemplates.length)];
           newShop.push({
               ...template,
-              id: `shop-${Date.now()}-${i}`,
-              buyPrice: Math.floor((template.value || 10) * 2.5), // 黑市买入价格是基准价值的 2.5 倍
-              stock: Math.floor(Math.random() * 3) + 1 // 随机库存 1~3 个
+              id: `shop-${Date.now()}-${i}`, 
+              buyPrice: Math.floor((template.value || 10) * 2.5), // 黑市溢价 250%
+              stock: Math.floor(Math.random() * 3) + 1
           });
       }
       setShopItems(newShop);
-      setRefreshCountdown(300); // 重置倒计时
+      setRefreshCountdown(300); 
   }, []);
 
-  // 初始加载及自动刷新计时器
+  // 维持黑市动态心跳
   useEffect(() => {
-      if (bounties.length === 0 && shopItems.length === 0) {
-          generateMarket();
-      }
+      if (bounties.length === 0 && shopItems.length === 0) generateMarket();
       const timer = setInterval(() => {
           setRefreshCountdown(prev => {
-              if (prev <= 1) {
-                  generateMarket();
-                  return 300;
-              }
+              if (prev <= 1) { generateMarket(); return 300; }
               return prev - 1;
           });
       }, 1000);
       return () => clearInterval(timer);
   }, [generateMarket, bounties.length, shopItems.length]);
 
-  // 格式化时间显示
   const formatTime = (s: number) => `${Math.floor(s/60)}:${String(s%60).padStart(2, '0')}`;
 
   const selectedChar = metaState.roster.find(c => c.id === selectedCharId) || metaState.roster[0];
@@ -175,7 +168,6 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const renderTradeTab = () => {
       const currentItems = metaState.warehouse.items;
 
-      // 悬赏订单交付逻辑
       const handleFulfillBounty = (bounty: any) => {
           let canFulfill = true;
           for(let req of bounty.requirements) {
@@ -210,18 +202,17 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           
           setMetaState(prev => ({
               ...prev,
-              resources: { ...prev.resources, GOLD: (prev.resources.GOLD || 0) + bounty.reward },
+              resources: { ...prev.resources, GOLD: (prev.resources[ResourceType.GOLD] || 0) + bounty.reward },
               warehouse: { ...prev.warehouse, items: newItems, grid: newGrid }
           }));
           
-          // 交付完成直接从列表移除，不再立即补充，等待刷新
           setBounties(prev => prev.filter(b => b.id !== bounty.id));
       };
 
-      // 走私物品购买逻辑
+      // 核心修复：购买物品消失 BUG
       const handleBuyItem = (shopItem: any) => {
-          if ((metaState.resources['GOLD'] || 0) < shopItem.buyPrice) {
-              alert("资金不足！");
+          if ((metaState.resources[ResourceType.GOLD] || 0) < shopItem.buyPrice) {
+              alert("资金不足！你需要更多金币。");
               return;
           }
           
@@ -229,7 +220,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           let currentWarehouseGrid = [...metaState.warehouse.grid];
           let placed = false;
 
-          // 优先尝试堆叠消耗品
+          // 1. 尝试堆叠
           if (shopItem.type === 'CONSUMABLE') {
               for (const wItem of currentWarehouseItems) {
                   if (wItem.type === 'CONSUMABLE' && wItem.name === shopItem.name) {
@@ -240,17 +231,29 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               }
           }
 
-          // 寻找空位放置
+          // 2. 寻找空位放置
           if (!placed) {
-              // 自动将购买物品设置为已鉴定、0旋转角度，并恢复真实形状
-              const itemToPlace = { ...shopItem, isIdentified: true, quantity: 1, rotation: 0, originalShape: shopItem.shape };
+              // 终极杀招：购买时强制生成全新随机ID！彻底杜绝重复购买导致的网格覆盖！
+              const uniqueId = `bought-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+              const itemToPlace = { 
+                  ...shopItem, 
+                  id: uniqueId, 
+                  isIdentified: true, 
+                  quantity: 1, 
+                  rotation: 0 as const, 
+                  shape: shopItem.originalShape || shopItem.shape, // 强校验防御
+                  originalShape: shopItem.originalShape || shopItem.shape 
+              };
               delete itemToPlace.buyPrice;
               delete itemToPlace.stock;
 
-              for (let y = 0; y < metaState.warehouse.height; y++) {
+              const wHeight = metaState.warehouse.height || INVENTORY_HEIGHT;
+              const wWidth = metaState.warehouse.width || INVENTORY_WIDTH;
+
+              for (let y = 0; y < wHeight; y++) {
                   if (placed) break;
-                  for (let x = 0; x < metaState.warehouse.width; x++) {
-                      // 必须放入仓库内，检查解锁行数
+                  for (let x = 0; x < wWidth; x++) {
+                      // 严格受限于仓库已解锁空间
                       if (canPlaceItem(currentWarehouseGrid, itemToPlace, x, y, metaState.warehouse.unlockedRows, 'WAREHOUSE')) {
                           const newItem = { ...itemToPlace, x, y };
                           currentWarehouseGrid = placeItemInGrid(currentWarehouseGrid, newItem, x, y);
@@ -263,14 +266,13 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           }
 
           if (!placed) {
-              alert("仓库空间不足！请先清理仓库。");
+              alert("仓库空间不足！走私货没地方放，请先前往仓库清理。");
               return;
           }
 
-          // 扣除金币、更新仓库、扣减黑市库存
           setMetaState(prev => ({
               ...prev,
-              resources: { ...prev.resources, GOLD: (prev.resources.GOLD || 0) - shopItem.buyPrice },
+              resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - shopItem.buyPrice },
               warehouse: { ...prev.warehouse, items: currentWarehouseItems, grid: currentWarehouseGrid }
           }));
 
@@ -281,136 +283,156 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
       };
 
       return (
-          <div className="flex flex-col items-center gap-4 w-full max-w-2xl animate-fade-in p-6 mx-auto h-full">
-            
-            {/* 顶部标题与黑市刷新栏 */}
-            <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 bg-stone-900/80 p-4 rounded-xl border border-stone-800 shadow-lg">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <LucideCoins className="text-dungeon-gold" size={24} />
-                        <span className="text-xl font-bold text-stone-200">{metaState.resources['GOLD'] || 0}</span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-xs text-stone-400 font-mono">
-                        <LucideActivity size={14} className="inline mr-1 text-dungeon-gold animate-pulse"/>
-                        市场刷新: {formatTime(refreshCountdown)}
-                    </span>
-                    <button 
-                        onClick={() => {
-                            if ((metaState.resources['GOLD'] || 0) >= 50) {
-                                setMetaState(prev => ({...prev, resources: {...prev.resources, GOLD: (prev.resources.GOLD || 0) - 50}}));
-                                generateMarket();
-                            } else {
-                                alert("刷新黑市需要 50 资金！");
-                            }
-                        }}
-                        className="px-3 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs border border-stone-600 rounded transition-colors shadow-md flex items-center gap-1"
-                    >
-                        立刻刷新 (🪙50)
-                    </button>
-                </div>
-            </div>
+          <div className="flex flex-col items-center gap-4 w-full h-full animate-fade-in p-4 lg:p-6 bg-stone-950">
+              
+              {/* 顶栏：赛博财务终端与刷新面板 */}
+              <div className="w-full max-w-4xl flex flex-col md:flex-row justify-between items-center gap-4 bg-black/80 p-4 rounded-xl border border-stone-800 shadow-[0_0_40px_rgba(0,0,0,0.6)] relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
+                  
+                  <div className="flex items-center gap-4 relative z-10">
+                      <div className="flex items-center gap-3 bg-dungeon-gold/10 px-5 py-2.5 rounded-lg border border-dungeon-gold/30 shadow-inner">
+                          <LucideCoins className="text-dungeon-gold drop-shadow-[0_0_10px_rgba(202,138,4,0.8)] animate-pulse" size={28} />
+                          <span className="text-2xl font-bold font-mono text-stone-200 tracking-wider">{metaState.resources[ResourceType.GOLD] || 0} <span className="text-sm text-stone-500 ml-1">₮</span></span>
+                      </div>
+                  </div>
 
-            {/* 导航 Tab */}
-            <div className="flex w-full rounded-lg overflow-hidden border border-stone-700 shrink-0">
-                <button 
-                    className={`flex-1 py-2 text-sm font-bold tracking-widest transition-colors ${tradeSubTab === 'BOUNTY' ? 'bg-dungeon-gold text-black' : 'bg-stone-900 text-stone-500 hover:bg-stone-800'}`}
-                    onClick={() => setTradeSubTab('BOUNTY')}
-                >
-                    悬赏订单 (出售)
-                </button>
-                <button 
-                    className={`flex-1 py-2 text-sm font-bold tracking-widest transition-colors ${tradeSubTab === 'SHOP' ? 'bg-dungeon-gold text-black' : 'bg-stone-900 text-stone-500 hover:bg-stone-800'}`}
-                    onClick={() => setTradeSubTab('SHOP')}
-                >
-                    黑市走私 (购买)
-                </button>
-            </div>
+                  <div className="flex items-center gap-4 relative z-10">
+                      <div className="flex items-center gap-2 text-stone-400 bg-stone-900/80 px-4 py-2.5 rounded-lg border border-stone-700 shadow-inner">
+                          <LucideActivity size={16} className="text-dungeon-gold" />
+                          <span className="text-xs font-mono tracking-widest uppercase">
+                              UPLINK REFRESH: <span className="text-stone-200 font-bold ml-2">{formatTime(refreshCountdown)}</span>
+                          </span>
+                      </div>
+                      <button 
+                          onClick={() => {
+                              if ((metaState.resources[ResourceType.GOLD] || 0) >= 50) {
+                                  setMetaState(prev => ({...prev, resources: {...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - 50}}));
+                                  generateMarket();
+                              } else {
+                                  alert("资金不足！强制刷新链路需要 50 金币。");
+                              }
+                          }}
+                          className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold font-mono tracking-widest border border-stone-600 hover:border-dungeon-gold rounded-lg transition-all shadow-md flex items-center gap-2 group"
+                      >
+                          <LucideZap size={14} className="text-stone-400 group-hover:text-dungeon-gold transition-colors" /> FORCE SYNC (🪙50)
+                      </button>
+                  </div>
+              </div>
 
-            <div className="w-full flex-1 overflow-y-auto space-y-4 px-1 pb-4 no-scrollbar">
-                {tradeSubTab === 'BOUNTY' && (
-                    <>
-                        {bounties.length === 0 ? (
-                            <div className="h-40 flex flex-col items-center justify-center text-stone-500 italic gap-2">
-                                <LucideFileText size={32} className="opacity-20" />
-                                当前暂无悬赏订单，请等待黑市刷新...
-                            </div>
-                        ) : (
-                            bounties.map(bounty => {
-                                let canFulfill = true;
-                                return (
-                                    <div key={bounty.id} className="p-4 bg-stone-900/50 border border-stone-700 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-stone-500 transition-colors shadow-md">
-                                        <div className="flex flex-col gap-2 flex-1">
-                                            <span className="text-xs font-bold text-stone-400">所需物资清单</span>
-                                            <div className="flex flex-wrap gap-2">
-                                                {bounty.requirements.map((req: any, idx: number) => {
-                                                    const owned = currentItems.filter(i => i.name === req.name).reduce((acc, i) => acc + (i.quantity || 1), 0);
-                                                    if (owned < req.quantity) canFulfill = false;
-                                                    return (
-                                                        <div key={idx} className={`px-2 py-1 rounded border text-xs flex items-center gap-2 ${owned >= req.quantity ? 'bg-green-900/20 border-green-700 text-green-400' : 'bg-stone-950 border-stone-700 text-stone-500'}`}>
-                                                            <span>{req.name}</span>
-                                                            <span className="font-mono">{owned}/{req.quantity}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 sm:border-l border-stone-800 pt-3 sm:pt-0 sm:pl-4 min-w-[120px]">
-                                            <div className="text-dungeon-gold font-bold flex items-center gap-1">
-                                                <LucideCoins size={14} /> + {bounty.reward} 
-                                            </div>
-                                            <button 
-                                                className={`w-full py-1.5 rounded font-bold text-xs transition-all shadow-lg ${canFulfill ? 'bg-dungeon-gold text-black hover:bg-yellow-400' : 'bg-stone-800 text-stone-600 cursor-not-allowed'}`}
-                                                onClick={() => handleFulfillBounty(bounty)}
-                                                disabled={!canFulfill}
-                                            >
-                                                交付订单
-                                            </button>
-                                        </div>
-                                    </div>
-                                )
-                            })
-                        )}
-                    </>
-                )}
+              {/* 核心导航切换：军用级 Toggle */}
+              <div className="flex w-full max-w-4xl bg-stone-900/80 p-1.5 rounded-lg border border-stone-800 shrink-0 shadow-inner">
+                  <button 
+                      className={`flex-1 py-2.5 text-xs font-bold font-display tracking-[0.2em] uppercase transition-all rounded flex justify-center items-center gap-2 ${tradeSubTab === 'BOUNTY' ? 'bg-dungeon-gold text-black shadow-[0_0_15px_rgba(202,138,4,0.4)]' : 'text-stone-500 hover:text-stone-300 hover:bg-stone-800/60'}`}
+                      onClick={() => setTradeSubTab('BOUNTY')}
+                  >
+                      <LucideFileText size={16} /> 高危悬赏 (SELL)
+                  </button>
+                  <button 
+                      className={`flex-1 py-2.5 text-xs font-bold font-display tracking-[0.2em] uppercase transition-all rounded flex justify-center items-center gap-2 ${tradeSubTab === 'SHOP' ? 'bg-dungeon-red text-white shadow-[0_0_15px_rgba(153,27,27,0.5)]' : 'text-stone-500 hover:text-stone-300 hover:bg-stone-800/60'}`}
+                      onClick={() => setTradeSubTab('SHOP')}
+                  >
+                      <LucideBox size={16} /> 黑市走私 (BUY)
+                  </button>
+              </div>
 
-                {tradeSubTab === 'SHOP' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {shopItems.length === 0 ? (
-                            <div className="col-span-1 sm:col-span-2 h-40 flex flex-col items-center justify-center text-stone-500 italic gap-2">
-                                <LucideBox size={32} className="opacity-20" />
-                                走私货已被抢购一空，请等待下一批黑市货物...
-                            </div>
-                        ) : (
-                            shopItems.map(item => (
-                                <div key={item.id} className="p-3 bg-stone-900/50 border border-stone-700 rounded-xl flex gap-3 hover:border-stone-500 transition-colors shadow-md">
-                                    <div className={`w-12 h-12 rounded border flex items-center justify-center shrink-0 shadow-inner ${item.color.replace('border-', 'bg-').split(' ')[0]}`}>
-                                         <span className="text-white/80 font-bold font-mono">{item.name.charAt(0)}</span>
-                                    </div>
-                                    <div className="flex flex-col flex-1 justify-between">
-                                        <div>
-                                            <div className="text-sm font-bold text-stone-200">{item.name} <span className="text-[10px] text-stone-500 ml-1">x{item.stock}</span></div>
-                                            <div className="text-[10px] text-stone-500 mt-0.5 line-clamp-1">{item.description}</div>
-                                        </div>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-xs text-red-400 font-bold flex items-center gap-1">
-                                                <LucideCoins size={12}/> {item.buyPrice}
-                                            </span>
-                                            <button 
-                                                onClick={() => handleBuyItem(item)}
-                                                className="px-4 py-1 bg-stone-800 hover:bg-dungeon-gold hover:text-black text-stone-300 text-xs font-bold rounded transition-colors shadow"
-                                            >
-                                                购入
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                )}
-            </div>
+              {/* 内容滚动区 */}
+              <div className="w-full max-w-4xl flex-1 overflow-y-auto no-scrollbar pb-10 space-y-4">
+                  {tradeSubTab === 'BOUNTY' && (
+                      <>
+                          {bounties.length === 0 ? (
+                              <div className="h-64 flex flex-col items-center justify-center text-stone-600 italic gap-4 bg-stone-900/20 rounded-xl border border-stone-800/50">
+                                  <LucideFileText size={48} className="opacity-20" />
+                                  <p className="font-mono text-sm tracking-widest">NO ACTIVE CONTRACTS. WAITING FOR UPLINK...</p>
+                              </div>
+                          ) : (
+                              bounties.map(bounty => {
+                                  let canFulfill = true;
+                                  return (
+                                      <div key={bounty.id} className="relative bg-stone-900/60 border-l-4 border-l-dungeon-gold border-y border-r border-stone-800 rounded-r-xl p-5 flex flex-col md:flex-row justify-between gap-6 hover:bg-stone-800/80 transition-all shadow-lg overflow-hidden group">
+                                          <div className="absolute -right-10 -top-10 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-700">
+                                              <LucideFileText size={140} />
+                                          </div>
+                                          
+                                          <div className="flex flex-col gap-3 flex-1 relative z-10">
+                                              <span className="text-xs font-bold font-mono tracking-widest text-stone-500">CONTRACT TARGETS:</span>
+                                              <div className="flex flex-wrap gap-2">
+                                                  {bounty.requirements.map((req: any, idx: number) => {
+                                                      const owned = currentItems.filter(i => i.name === req.name).reduce((acc, i) => acc + (i.quantity || 1), 0);
+                                                      if (owned < req.quantity) canFulfill = false;
+                                                      return (
+                                                          <div key={idx} className={`px-3 py-1.5 rounded bg-black/50 border text-xs flex items-center gap-3 shadow-inner ${owned >= req.quantity ? 'border-dungeon-gold/50 text-dungeon-gold' : 'border-stone-700 text-stone-500'}`}>
+                                                              <span className="font-bold">{req.name}</span>
+                                                              <span className="font-mono bg-stone-900 px-1.5 rounded">{owned}/{req.quantity}</span>
+                                                          </div>
+                                                      );
+                                                  })}
+                                              </div>
+                                          </div>
+
+                                          <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-4 border-t md:border-t-0 md:border-l border-stone-800/80 pt-4 md:pt-0 md:pl-6 min-w-[140px] relative z-10">
+                                              <div className="text-dungeon-gold font-bold font-mono text-lg flex items-center gap-1.5 drop-shadow-[0_0_5px_rgba(202,138,4,0.5)]">
+                                                  <LucideCoins size={18} /> + {bounty.reward} 
+                                              </div>
+                                              <button 
+                                                  className={`w-full py-2.5 rounded text-xs font-bold tracking-[0.2em] transition-all shadow-lg uppercase ${canFulfill ? 'bg-dungeon-gold text-black hover:bg-yellow-400 hover:shadow-[0_0_15px_rgba(250,204,21,0.6)]' : 'bg-stone-950 border border-stone-800 text-stone-700 cursor-not-allowed'}`}
+                                                  onClick={() => handleFulfillBounty(bounty)}
+                                                  disabled={!canFulfill}
+                                              >
+                                                  {canFulfill ? 'FULFILL (交付)' : 'LACKING (不足)'}
+                                              </button>
+                                          </div>
+                                      </div>
+                                  )
+                              })
+                          )}
+                      </>
+                  )}
+
+                  {tradeSubTab === 'SHOP' && (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {shopItems.length === 0 ? (
+                              <div className="col-span-1 lg:col-span-2 h-64 flex flex-col items-center justify-center text-stone-600 italic gap-4 bg-stone-900/20 rounded-xl border border-stone-800/50">
+                                  <LucideBox size={48} className="opacity-20" />
+                                  <p className="font-mono text-sm tracking-widest">CONTRABAND OUT OF STOCK. WAIT FOR DROP...</p>
+                              </div>
+                          ) : (
+                              shopItems.map(item => (
+                                  <div key={item.id} className="relative p-4 bg-black/60 border border-stone-800 rounded-lg flex flex-col sm:flex-row gap-4 hover:border-stone-500 transition-all shadow-lg overflow-hidden group">
+                                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-stone-800/40 to-transparent pointer-events-none z-0"></div>
+                                      
+                                      <div className={`w-16 h-16 shrink-0 border border-stone-700 rounded-md flex items-center justify-center shadow-inner ${item.color.replace('border-', 'bg-').split(' ')[0]} bg-opacity-20 relative z-10`}>
+                                           <span className="text-2xl font-display font-bold text-white/90 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{item.name.charAt(0)}</span>
+                                      </div>
+                                      
+                                      <div className="flex-1 flex flex-col justify-between relative z-10">
+                                          <div className="flex justify-between items-start gap-2">
+                                              <div>
+                                                  <h4 className={`text-sm font-bold tracking-wider transition-colors ${item.rarity === 'LEGENDARY' ? 'text-yellow-400' : item.rarity === 'RARE' ? 'text-purple-400' : 'text-stone-200'}`}>{item.name}</h4>
+                                                  <p className="text-[10px] text-stone-500 font-mono mt-1 line-clamp-2">{item.description}</p>
+                                              </div>
+                                              <div className="bg-stone-900 border border-stone-700 px-2 py-0.5 rounded text-[10px] font-mono text-stone-400 shrink-0">
+                                                  STOCK: <span className="text-stone-200">{item.stock}</span>
+                                              </div>
+                                          </div>
+                                          
+                                          <div className="flex items-center justify-between mt-4 pt-3 border-t border-stone-800/80">
+                                              <div className="flex items-center gap-1.5 text-dungeon-red font-bold font-mono bg-red-950/30 px-3 py-1 rounded border border-red-900/50">
+                                                  <LucideCoins size={14}/> {item.buyPrice}
+                                              </div>
+                                              <button 
+                                                  onClick={() => handleBuyItem(item)}
+                                                  className="px-6 py-2 bg-stone-800 hover:bg-stone-200 text-stone-400 hover:text-black text-xs font-bold tracking-widest uppercase transition-all rounded shadow-md border border-stone-600 hover:border-white"
+                                              >
+                                                  购入 (BUY)
+                                              </button>
+                                          </div>
+                                      </div>
+                                  </div>
+                              ))
+                          )}
+                      </div>
+                  )}
+              </div>
           </div>
       );
   };
