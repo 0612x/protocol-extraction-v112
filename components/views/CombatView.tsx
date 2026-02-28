@@ -1984,7 +1984,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-5 mix-blend-overlay pointer-events-none"></div>
               <div className="absolute top-0 left-0 w-full h-16 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
               
-              {/* Deck Visual */}
+                {/* Deck Visual */}
               <div className="absolute bottom-8 left-6 w-16 h-24 bg-stone-900 border border-stone-700 rounded shadow-xl rotate-[-5deg] z-20 flex items-center justify-center group cursor-pointer hover:-translate-y-1 transition-transform hidden md:flex">
                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-felt.png')] opacity-20"></div>
                   {/* Stack effect */}
@@ -1993,18 +1993,28 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                   <LucideLayers size={20} className="text-stone-600 group-hover:text-stone-400 transition-colors" />
                   <div className="absolute -bottom-5 text-[9px] font-mono text-stone-600 font-bold tracking-widest">DECK</div>
               </div>
-{/* 测试专供：上帝模式 (God Mode) */}
-              <button 
-                  onClick={() => updatePlayer(prev => ({ 
-                      ...prev, 
-                      currentHp: 9999, 
-                      maxHp: 9999, 
-                      shield: 9999 
-                  }))}
-                  className="absolute left-2 top-2 md:left-6 md:top-auto md:bottom-36 px-3 py-1.5 bg-red-950/80 border border-red-900 text-red-500 text-[10px] font-bold font-mono tracking-widest rounded shadow-[0_0_15px_rgba(153,27,27,0.5)] hover:bg-red-900 hover:text-white hover:border-red-500 transition-all z-50"
-              >
-                  GOD MODE
-              </button>
+
+              {/* 测试专供：控制台 (God Mode & Kill) - 移到底层 z-10 避免挡住卡牌 */}
+              <div className="absolute left-2 top-2 md:left-6 md:top-auto md:bottom-32 flex flex-col gap-2 z-10">
+                  <button 
+                      onClick={() => updatePlayer(prev => ({ 
+                          ...prev, 
+                          currentHp: 9999, 
+                          maxHp: 9999, 
+                          shield: 9999 
+                      }))}
+                      className="px-3 py-1.5 bg-red-950/80 border border-red-900 text-red-500 text-[10px] font-bold font-mono tracking-widest rounded shadow-[0_0_15px_rgba(153,27,27,0.5)] hover:bg-red-900 hover:text-white hover:border-red-500 transition-all"
+                  >
+                      GOD MODE
+                  </button>
+                  <button 
+                      onClick={() => setEnemy(prev => ({ ...prev, currentHp: 0 }))}
+                      className="px-3 py-1.5 bg-purple-950/80 border border-purple-900 text-purple-500 text-[10px] font-bold font-mono tracking-widest rounded shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:bg-purple-900 hover:text-white hover:border-purple-500 transition-all"
+                  >
+                      秒杀
+                  </button>
+              </div>
+
               <div className="absolute bottom-0 left-1/2 w-0 h-full z-20">
                 {hand.map((cardObj, idx) => {
                    const card = cardObj.type;

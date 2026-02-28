@@ -437,6 +437,9 @@ export default function App() {
       setInventory({ ...inventory, items: newItems, grid: newGrid });
   };
 
+  // 提取当前出战角色的核心信息，用于正确渲染局内背包形状和安全区限制
+  const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+
   return (
     <div className="relative w-full h-[100dvh] md:max-w-[480px] md:h-[90vh] md:max-h-[900px] bg-neutral-900 text-stone-200 font-serif overflow-hidden md:shadow-2xl md:border border-stone-800 flex flex-col">
       {phase === 'MENU' && <MetaView onStartRun={enterBaseCamp} playerLevel={1} />}
@@ -497,6 +500,8 @@ export default function App() {
                             onConsume={handleConsumeItem} 
                             currentStage={stage}
                             maxStage={STAGES_PER_DEPTH}
+                            playerClass={activeChar.class} // 核心修复：传入角色职业以正确渲染背包网格布局
+                            playerLevel={activeChar.level} // 核心修复：传入角色等级以正确渲染保险区
                          />
                     </div>
                     <div className="p-4 bg-dungeon-dark border-t border-stone-800 text-center">
@@ -521,6 +526,8 @@ export default function App() {
           onConsume={handleConsumeItem} 
           currentStage={stage}
           maxStage={STAGES_PER_DEPTH}
+          playerClass={activeChar.class} // 核心修复：保证战利品整理时的背包形状一致
+          playerLevel={activeChar.level} // 核心修复：保证保险区高亮显示
         />
       )}
 
