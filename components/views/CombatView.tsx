@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { CardType, Enemy, PlayerStats, Blueprint, EnemyIntent } from '../../types';
 import { CARD_DEFINITIONS, HAND_SIZE, MAX_BUFFER_SIZE, DRAW_AMOUNT, STARTING_BLUEPRINTS, BLUEPRINT_POOL } from '../../constants';
 import { Card } from '../ui/Card';
-import { LucideSword, LucideShield, LucideBookOpen, LucideX, LucideGhost, LucideHeart, LucideEye, LucideTrash2, LucideDroplets, LucideFlame, LucideSnowflake, LucideZap, LucideBiohazard, LucideBrain, LucideSprout, LucideTrendingUp, LucideHeartCrack, LucideBicepsFlexed, LucidePlus, LucideOrbit, LucideChevronsUp, LucideBackpack, LucideScrollText, LucideTarget, LucideLock, LucideDownload, LucideSkull, LucideHourglass, LucideUndo2, LucideFilter, LucideLayers } from 'lucide-react';
+import { LucideSword, LucideShield, LucideBookOpen, LucideX, LucideGhost, LucideHeart, LucideEye, LucideTrash2, LucideDroplets, LucideFlame, LucideSnowflake, LucideZap, LucideBiohazard, LucideBrain, LucideSprout, LucideTrendingUp, LucideHeartCrack, LucideBicepsFlexed, LucidePlus, LucideOrbit, LucideChevronsUp, LucideBackpack, LucideScrollText, LucideTarget, LucideLock, LucideDownload, LucideSkull, LucideHourglass, LucideUndo2, LucideFilter, LucideLayers, LucideMenu } from 'lucide-react';
 
 interface CombatViewProps {
   enemy: Enemy;
@@ -98,6 +98,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   const [screenFlash, setScreenFlash] = useState<string | null>(null);
   const [showComboList, setShowComboList] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
+  
+  // 核心优化：增加菜单状态与回合倒计时系统
+  const [showMenu, setShowMenu] = useState(false); 
+  const TURN_LIMIT = 30;
+  const [timeLeft, setTimeLeft] = useState(TURN_LIMIT);
 
   // --- CHECK WIN/LOSS ---
   useEffect(() => {
@@ -142,9 +147,49 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
   const enemyRef = useRef(enemy);
   const playerRef = useRef(player);
+  const handRef = useRef(hand); // 抓取最新手牌供倒计时使用
 
   useEffect(() => { enemyRef.current = enemy; }, [enemy]);
   useEffect(() => { playerRef.current = player; }, [player]);
+  useEffect(() => { handRef.current = hand; }, [hand]);
+
+  // 倒计时核心逻辑
+  useEffect(() => {
+      if (isPlayerTurn) setTimeLeft(TURN_LIMIT);
+  }, [turn, isPlayerTurn]);
+
+  const handleTimeOut = useCallback(() => {
+      addLog('>> [系统] 神经链接过载，强制终止思考时间');
+      let currentHand = [...handRef.current];
+      // 如果超时且手牌超限，强制从右侧丢弃
+      if (currentHand.length > HAND_SIZE) {
+          currentHand = currentHand.slice(0, HAND_SIZE);
+          setHand(currentHand);
+          addLog(`>> [系统] 强制切断了最右侧的 ${handRef.current.length - HAND_SIZE} 个过载神经(丢弃卡牌)`);
+      }
+      setIsDiscarding(false);
+      setIsHoverDisabled(true); 
+      setTimeout(() => {
+          setIsHoverDisabled(false);
+          executeEnemyTurn();
+      }, 500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 故意省略 executeEnemyTurn 防止无限触发
+
+  useEffect(() => {
+      if (!isPlayerTurn || isProcessing || showMenu) return; // 思考锁定时或打开菜单时暂停倒计时
+      const timer = setInterval(() => {
+          setTimeLeft(prev => {
+              if (prev <= 1) {
+                  clearInterval(timer);
+                  handleTimeOut();
+                  return 0;
+              }
+              return prev - 1;
+          });
+      }, 1000);
+      return () => clearInterval(timer);
+  }, [isPlayerTurn, isProcessing, showMenu, handleTimeOut]);
 
   useEffect(() => {
     drawCards(HAND_SIZE);
@@ -1829,6 +1874,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                        <button onClick={() => setShowComboList(true)} className="w-10 h-10 border border-stone-700 bg-stone-900/60 hover:bg-stone-800 hover:border-dungeon-gold flex items-center justify-center transition-all group shadow-md" title="蓝图档案">
                            <LucideBookOpen size={18} className="text-stone-400 group-hover:text-dungeon-gold transition-colors" />
                        </button>
+                       {/* 核心优化：增加系统菜单按钮 */}
+                       <button onClick={() => setShowMenu(true)} className="w-10 h-10 border border-stone-700 bg-stone-900/60 hover:bg-stone-800 hover:border-dungeon-red flex items-center justify-center transition-all group shadow-md" title="系统菜单">
+                           <LucideMenu size={18} className="text-stone-400 group-hover:text-dungeon-red transition-colors" />
+                       </button>
                   </div>
               </div>
 
@@ -1935,6 +1984,15 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
                 {/* End Turn Button */}
                 <div className="flex flex-col items-end gap-1 w-auto shrink-0 z-50">
+                    {/* 新增：视觉化读条倒计时 */}
+                    {isPlayerTurn && !isProcessing && (
+                        <div className="w-16 h-1.5 bg-stone-900 border border-stone-800 rounded-sm overflow-hidden mb-0.5 relative">
+                            <div 
+                                className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-linear ${timeLeft <= 5 ? 'bg-red-500 animate-pulse shadow-[0_0_10px_red]' : 'bg-dungeon-gold'}`}
+                                style={{ width: `${(timeLeft / TURN_LIMIT) * 100}%` }}
+                            ></div>
+                        </div>
+                    )}
                     <button 
                         onClick={attemptEndTurn}
                         disabled={!isPlayerTurn || isProcessing}
@@ -1953,7 +2011,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                              <>
                                 <LucideZap size={20} className={`${isDiscarding ? "animate-bounce text-red-400" : "group-hover:text-dungeon-gold"}`} />
                                 <span className="relative z-10 text-[9px] font-display font-bold tracking-widest uppercase">
-                                    {isDiscarding ? '丢弃' : '执行'}
+                                    {isDiscarding ? '丢弃' : `执行 ${timeLeft}S`}
                                 </span>
                              </>
                         ) : (
@@ -2153,9 +2211,40 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           </div>
       )}
 
-      {showComboList && renderComboModal()}
+     {showComboList && renderComboModal()}
       {showLogModal && renderLogModal()}
+
+      {/* 核心优化：局内系统菜单面板 */}
+      {showMenu && (
+          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center animate-fade-in" onClick={() => setShowMenu(false)}>
+              <div className="bg-dungeon-dark border border-stone-700 p-6 rounded-xl flex flex-col items-center gap-6 max-w-xs w-full shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
+                  <div className="text-center relative z-10">
+                      <h2 className="text-2xl font-display font-bold text-stone-200 tracking-widest">系统菜单</h2>
+                      <p className="text-[10px] text-stone-500 mt-1 uppercase tracking-widest">System Override</p>
+                  </div>
+                  <div className="w-full h-px bg-stone-800 relative z-10"></div>
+                  
+                  <button 
+                      onClick={() => { setShowMenu(false); onLose(); }} // 联动父级的死亡/失败电影级动画
+                      className="w-full py-4 bg-red-950/40 hover:bg-red-900/80 text-red-500 hover:text-white border border-red-900/50 hover:border-red-500 transition-all rounded shadow-lg font-bold tracking-widest relative z-10"
+                  >
+                      放弃行动 (强制撤离)
+                  </button>
+                  <button 
+                      onClick={() => setShowMenu(false)}
+                      className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 hover:border-stone-500 transition-all rounded shadow-md font-bold tracking-widest relative z-10"
+                  >
+                      继续探索
+                  </button>
+                  <p className="text-[10px] text-red-600/80 font-bold text-center mt-2 relative z-10">
+                      警告：强行断开链接将被视为阵亡。<br/>你将永久遗失安全区外的所有战利品！
+                  </p>
+              </div>
+          </div>
+      )}
 
     </div>
   );
+
 };
