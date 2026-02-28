@@ -1311,10 +1311,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 }}
                 onPointerDown={(e) => handlePointerDown(e, item, gridType, x, y)}
               >
-                  {/* 核心优化：合并未鉴定盲盒样式，完美包裹并居中巨型扫描按钮 */}
+                 {/* 核心优化：分离容器背景与内容，确保任何尺寸物品下按钮大小绝对一致且不被裁切 */}
                   {isTopLeft && !item.isIdentified && (
                         <div 
-                            className="absolute z-50 flex items-center justify-center bg-stone-900/95 backdrop-blur-md border border-stone-600 rounded overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.9)] pointer-events-auto"
+                            className="absolute z-50 flex items-center justify-center pointer-events-auto"
                             style={{
                                 top: '-1px', left: '-1px',
                                 // 精确计算跨越的像素宽度与高度，实现100%全覆盖
@@ -1323,34 +1323,37 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             }}
                             onClick={() => handleSearchItem(item)}
                         >
+                            {/* 独立的背景层，保留 overflow-hidden（专门用于裁剪激光使其不跑到盒子外面去） */}
+                            <div className="absolute inset-0 bg-stone-900/95 backdrop-blur-md border border-stone-600 rounded overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.9)] pointer-events-none">
+                                {!isSearching ? (
+                                     <>
+                                         <style>{`@keyframes scan-down { 0% { top: -20%; } 100% { top: 120%; } }`}</style>
+                                         <div className="absolute left-0 right-0 h-1 bg-dungeon-gold/50 shadow-[0_0_15px_rgba(202,138,4,0.8)]" style={{ animation: 'scan-down 3s linear infinite' }}></div>
+                                         <div className="absolute inset-0 bg-noise opacity-30 mix-blend-overlay"></div>
+                                     </>
+                                ) : (
+                                     <>
+                                         <div className="absolute inset-0 bg-dungeon-gold/10"></div>
+                                         <div className="absolute w-full h-1 bg-dungeon-gold/80 shadow-[0_0_10px_#a16207] animate-scan-line"></div>
+                                     </>
+                                )}
+                            </div>
+
+                            {/* 独立的交互层：绝对统一尺寸的按钮，绝不受父级 Flex 挤压影响 */}
                             {!isSearching ? (
-                                <>
-                                     {/* 科技扫描线动画 */}
-                                     <style>{`@keyframes scan-down { 0% { top: -20%; } 100% { top: 120%; } }`}</style>
-                                     <div className="absolute left-0 right-0 h-1 bg-dungeon-gold/50 shadow-[0_0_15px_rgba(202,138,4,0.8)] pointer-events-none" style={{ animation: 'scan-down 3s linear infinite' }}></div>
-                                     <div className="absolute inset-0 bg-noise opacity-30 mix-blend-overlay pointer-events-none"></div>
-                                     
-                                     {/* 巨大的居中扫描按钮 */}
-                                     <button 
-                                         className="relative z-10 p-4 bg-stone-900 text-dungeon-gold rounded-full hover:bg-stone-800 hover:scale-110 transition-all border-2 border-dungeon-gold shadow-[0_0_30px_rgba(202,138,4,0.6)] animate-pulse"
-                                         onPointerDown={(e) => { e.stopPropagation(); handleSearchItem(item); }}
-                                     >
-                                         <LucideScanLine size={32} />
-                                     </button>
-                                </>
+                                <button 
+                                    className="relative z-10 flex items-center justify-center w-8 h-8 shrink-0 bg-stone-900 text-dungeon-gold rounded-full hover:bg-stone-800 hover:scale-110 transition-all border border-dungeon-gold shadow-[0_0_20px_rgba(202,138,4,0.6)] animate-pulse"
+                                    onPointerDown={(e) => { e.stopPropagation(); handleSearchItem(item); }}
+                                >
+                                    <LucideScanLine size={16} />
+                                </button>
                             ) : (
-                                <>
-                                   {/* 解码中的动画效果 */}
-                                   <div className="absolute inset-0 bg-dungeon-gold/10"></div>
-                                   <div className="absolute w-full h-1 bg-dungeon-gold/80 shadow-[0_0_10px_#a16207] animate-scan-line z-20"></div>
-                                   <div className="absolute bottom-2 text-[8px] font-mono text-dungeon-gold animate-pulse bg-black/70 px-2 py-0.5 rounded border border-dungeon-gold/30 z-30">
-                                       DECODING...
-                                   </div>
-                                </>
+                                <div className="absolute bottom-1 text-[8px] font-mono text-dungeon-gold animate-pulse bg-black/70 px-1 py-0.5 rounded border border-dungeon-gold/30 z-30 whitespace-nowrap">
+                                    DECODING...
+                                </div>
                             )}
                         </div>
                   )}
-
                   {isTopLeft && item.isIdentified && (item.quantity || 1) > 1 && (
                       <div className="absolute -bottom-1 -right-1 z-30 bg-black/80 text-stone-200 text-[10px] font-bold px-1 rounded-tl-sm border-l border-t border-stone-600 font-mono shadow-md">
                           x{item.quantity}
