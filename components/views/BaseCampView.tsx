@@ -26,11 +26,18 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const [isRecruiting, setIsRecruiting] = useState(false); 
   const [recruitmentResult, setRecruitmentResult] = useState<Character | null>(null);
 
-  // --- 黑市/交易核心系统状态 ---
+ // --- 黑市/交易核心系统状态 ---
   const [tradeSubTab, setTradeSubTab] = useState<'BOUNTY' | 'SHOP'>('BOUNTY');
   const [bounties, setBounties] = useState<any[]>([]);
   const [shopItems, setShopItems] = useState<any[]>([]);
   const [refreshCountdown, setRefreshCountdown] = useState<number>(300); // 5分钟倒计时
+  
+  // 核心优化：全局 Toast 提示状态，支持成功/失败类型，并缩短停留时间至 1.5 秒
+  const [toast, setToast] = useState<{msg: string, type: 'error' | 'success'} | null>(null);
+  const showToast = useCallback((msg: string, type: 'error' | 'success' = 'error') => {
+      setToast({msg, type});
+      setTimeout(() => setToast(null), 1500); // 1.5秒后快速消失
+  }, []);
 
   // 市场货物生成引擎
   const generateMarket = useCallback(() => {
@@ -57,7 +64,8 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               ...template,
               id: `shop-${Date.now()}-${i}`, 
               buyPrice: Math.floor((template.value || 10) * 2.5), // 黑市溢价 250%
-              stock: Math.floor(Math.random() * 3) + 1
+              // 核心优化：只允许消耗品堆叠(随机1~3个)，武器/遗物等装备只能刷出 1 个！
+              stock: template.type === 'CONSUMABLE' ? Math.floor(Math.random() * 3) + 1 : 1
           });
       }
       setShopItems(newShop);
@@ -207,12 +215,12 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           }));
           
           setBounties(prev => prev.filter(b => b.id !== bounty.id));
+          showToast(`交付成功！佣金 +${bounty.reward} ₮`, 'success'); // 增加成功提示
       };
 
-      // 核心修复：购买物品消失 BUG
       const handleBuyItem = (shopItem: any) => {
           if ((metaState.resources[ResourceType.GOLD] || 0) < shopItem.buyPrice) {
-              alert("资金不足！你需要更多金币。");
+              showToast("资金不足！黑市交易概不赊账。");
               return;
           }
           
@@ -220,7 +228,6 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           let currentWarehouseGrid = [...metaState.warehouse.grid];
           let placed = false;
 
-          // 1. 尝试堆叠
           if (shopItem.type === 'CONSUMABLE') {
               for (const wItem of currentWarehouseItems) {
                   if (wItem.type === 'CONSUMABLE' && wItem.name === shopItem.name) {
@@ -231,9 +238,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               }
           }
 
-          // 2. 寻找空位放置
           if (!placed) {
-              // 终极杀招：购买时强制生成全新随机ID！彻底杜绝重复购买导致的网格覆盖！
               const uniqueId = `bought-${Date.now()}-${Math.floor(Math.random()*10000)}`;
               const itemToPlace = { 
                   ...shopItem, 
@@ -241,7 +246,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                   isIdentified: true, 
                   quantity: 1, 
                   rotation: 0 as const, 
-                  shape: shopItem.originalShape || shopItem.shape, // 强校验防御
+                  shape: shopItem.originalShape || shopItem.shape,
                   originalShape: shopItem.originalShape || shopItem.shape 
               };
               delete itemToPlace.buyPrice;
@@ -253,7 +258,6 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               for (let y = 0; y < wHeight; y++) {
                   if (placed) break;
                   for (let x = 0; x < wWidth; x++) {
-                      // 严格受限于仓库已解锁空间
                       if (canPlaceItem(currentWarehouseGrid, itemToPlace, x, y, metaState.warehouse.unlockedRows, 'WAREHOUSE')) {
                           const newItem = { ...itemToPlace, x, y };
                           currentWarehouseGrid = placeItemInGrid(currentWarehouseGrid, newItem, x, y);
@@ -266,7 +270,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           }
 
           if (!placed) {
-              alert("仓库空间不足！走私货没地方放，请先前往仓库清理。");
+              showToast("仓库空间已满！走私货无处安放，请先清理仓库。");
               return;
           }
 
@@ -280,12 +284,12 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               if (i.id === shopItem.id) return { ...i, stock: i.stock - 1 };
               return i;
           }).filter(i => i.stock > 0));
+          showToast(`购入成功！获得 ${shopItem.name}`, 'success'); // 增加成功提示
       };
 
       return (
           <div className="flex flex-col items-center gap-4 w-full h-full animate-fade-in p-4 lg:p-6 bg-stone-950">
               
-              {/* 顶栏：赛博财务终端与刷新面板 */}
               <div className="w-full max-w-4xl flex flex-col md:flex-row justify-between items-center gap-4 bg-black/80 p-4 rounded-xl border border-stone-800 shadow-[0_0_40px_rgba(0,0,0,0.6)] relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
                   
@@ -299,8 +303,8 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                   <div className="flex items-center gap-4 relative z-10">
                       <div className="flex items-center gap-2 text-stone-400 bg-stone-900/80 px-4 py-2.5 rounded-lg border border-stone-700 shadow-inner">
                           <LucideActivity size={16} className="text-dungeon-gold" />
-                          <span className="text-xs font-mono tracking-widest uppercase">
-                              UPLINK REFRESH: <span className="text-stone-200 font-bold ml-2">{formatTime(refreshCountdown)}</span>
+                          <span className="text-xs font-bold tracking-widest uppercase">
+                              市场刷新: <span className="text-stone-200 font-bold ml-2 font-mono">{formatTime(refreshCountdown)}</span>
                           </span>
                       </div>
                       <button 
@@ -309,40 +313,38 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                   setMetaState(prev => ({...prev, resources: {...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - 50}}));
                                   generateMarket();
                               } else {
-                                  alert("资金不足！强制刷新链路需要 50 金币。");
+                                  showToast("资金不足！刷新黑市需要 50 金币。");
                               }
                           }}
-                          className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold font-mono tracking-widest border border-stone-600 hover:border-dungeon-gold rounded-lg transition-all shadow-md flex items-center gap-2 group"
+                          className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold tracking-widest border border-stone-600 hover:border-dungeon-gold rounded-lg transition-all shadow-md flex items-center gap-2 group"
                       >
-                          <LucideZap size={14} className="text-stone-400 group-hover:text-dungeon-gold transition-colors" /> FORCE SYNC (🪙50)
+                          <LucideZap size={14} className="text-stone-400 group-hover:text-dungeon-gold transition-colors" /> 刷新 (🪙50)
                       </button>
                   </div>
               </div>
 
-              {/* 核心导航切换：军用级 Toggle */}
               <div className="flex w-full max-w-4xl bg-stone-900/80 p-1.5 rounded-lg border border-stone-800 shrink-0 shadow-inner">
                   <button 
-                      className={`flex-1 py-2.5 text-xs font-bold font-display tracking-[0.2em] uppercase transition-all rounded flex justify-center items-center gap-2 ${tradeSubTab === 'BOUNTY' ? 'bg-dungeon-gold text-black shadow-[0_0_15px_rgba(202,138,4,0.4)]' : 'text-stone-500 hover:text-stone-300 hover:bg-stone-800/60'}`}
+                      className={`flex-1 py-2.5 text-xs font-bold tracking-widest uppercase transition-all rounded flex justify-center items-center gap-2 ${tradeSubTab === 'BOUNTY' ? 'bg-dungeon-gold text-black shadow-[0_0_15px_rgba(202,138,4,0.4)]' : 'text-stone-500 hover:text-stone-300 hover:bg-stone-800/60'}`}
                       onClick={() => setTradeSubTab('BOUNTY')}
                   >
-                      <LucideFileText size={16} /> 高危悬赏 (SELL)
+                      <LucideFileText size={16} /> 高危悬赏 (出售)
                   </button>
                   <button 
-                      className={`flex-1 py-2.5 text-xs font-bold font-display tracking-[0.2em] uppercase transition-all rounded flex justify-center items-center gap-2 ${tradeSubTab === 'SHOP' ? 'bg-dungeon-red text-white shadow-[0_0_15px_rgba(153,27,27,0.5)]' : 'text-stone-500 hover:text-stone-300 hover:bg-stone-800/60'}`}
+                      className={`flex-1 py-2.5 text-xs font-bold tracking-widest uppercase transition-all rounded flex justify-center items-center gap-2 ${tradeSubTab === 'SHOP' ? 'bg-dungeon-red text-white shadow-[0_0_15px_rgba(153,27,27,0.5)]' : 'text-stone-500 hover:text-stone-300 hover:bg-stone-800/60'}`}
                       onClick={() => setTradeSubTab('SHOP')}
                   >
-                      <LucideBox size={16} /> 黑市走私 (BUY)
+                      <LucideBox size={16} /> 黑市走私 (购买)
                   </button>
               </div>
 
-              {/* 内容滚动区 */}
               <div className="w-full max-w-4xl flex-1 overflow-y-auto no-scrollbar pb-10 space-y-4">
                   {tradeSubTab === 'BOUNTY' && (
                       <>
                           {bounties.length === 0 ? (
                               <div className="h-64 flex flex-col items-center justify-center text-stone-600 italic gap-4 bg-stone-900/20 rounded-xl border border-stone-800/50">
                                   <LucideFileText size={48} className="opacity-20" />
-                                  <p className="font-mono text-sm tracking-widest">NO ACTIVE CONTRACTS. WAITING FOR UPLINK...</p>
+                                  <p className="font-bold text-sm tracking-widest">当前暂无悬赏订单，请等待链路同步...</p>
                               </div>
                           ) : (
                               bounties.map(bounty => {
@@ -354,7 +356,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                           </div>
                                           
                                           <div className="flex flex-col gap-3 flex-1 relative z-10">
-                                              <span className="text-xs font-bold font-mono tracking-widest text-stone-500">CONTRACT TARGETS:</span>
+                                              <span className="text-xs font-bold tracking-widest text-stone-500">悬赏目标清单:</span>
                                               <div className="flex flex-wrap gap-2">
                                                   {bounty.requirements.map((req: any, idx: number) => {
                                                       const owned = currentItems.filter(i => i.name === req.name).reduce((acc, i) => acc + (i.quantity || 1), 0);
@@ -373,12 +375,13 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                               <div className="text-dungeon-gold font-bold font-mono text-lg flex items-center gap-1.5 drop-shadow-[0_0_5px_rgba(202,138,4,0.5)]">
                                                   <LucideCoins size={18} /> + {bounty.reward} 
                                               </div>
+                                              {/* 核心优化：悬赏交付按钮的极致质感 */}
                                               <button 
-                                                  className={`w-full py-2.5 rounded text-xs font-bold tracking-[0.2em] transition-all shadow-lg uppercase ${canFulfill ? 'bg-dungeon-gold text-black hover:bg-yellow-400 hover:shadow-[0_0_15px_rgba(250,204,21,0.6)]' : 'bg-stone-950 border border-stone-800 text-stone-700 cursor-not-allowed'}`}
+                                                  className={`w-full py-2.5 px-4 rounded text-xs font-bold tracking-widest transition-all uppercase ${canFulfill ? 'bg-dungeon-gold text-black hover:bg-yellow-400 shadow-[0_0_15px_rgba(202,138,4,0.4)] hover:shadow-[0_0_20px_rgba(250,204,21,0.6)] hover:scale-105' : 'bg-stone-950 border border-stone-800 text-stone-700 cursor-not-allowed'}`}
                                                   onClick={() => handleFulfillBounty(bounty)}
                                                   disabled={!canFulfill}
                                               >
-                                                  {canFulfill ? 'FULFILL (交付)' : 'LACKING (不足)'}
+                                                  {canFulfill ? '交付订单' : '物资不足'}
                                               </button>
                                           </div>
                                       </div>
@@ -393,7 +396,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                           {shopItems.length === 0 ? (
                               <div className="col-span-1 lg:col-span-2 h-64 flex flex-col items-center justify-center text-stone-600 italic gap-4 bg-stone-900/20 rounded-xl border border-stone-800/50">
                                   <LucideBox size={48} className="opacity-20" />
-                                  <p className="font-mono text-sm tracking-widest">CONTRABAND OUT OF STOCK. WAIT FOR DROP...</p>
+                                  <p className="font-bold text-sm tracking-widest">走私黑货已被抢购一空，请等待下一批空投...</p>
                               </div>
                           ) : (
                               shopItems.map(item => (
@@ -410,8 +413,8 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                                   <h4 className={`text-sm font-bold tracking-wider transition-colors ${item.rarity === 'LEGENDARY' ? 'text-yellow-400' : item.rarity === 'RARE' ? 'text-purple-400' : 'text-stone-200'}`}>{item.name}</h4>
                                                   <p className="text-[10px] text-stone-500 font-mono mt-1 line-clamp-2">{item.description}</p>
                                               </div>
-                                              <div className="bg-stone-900 border border-stone-700 px-2 py-0.5 rounded text-[10px] font-mono text-stone-400 shrink-0">
-                                                  STOCK: <span className="text-stone-200">{item.stock}</span>
+                                              <div className="bg-stone-900 border border-stone-700 px-2 py-0.5 rounded text-[10px] font-bold text-stone-400 shrink-0">
+                                                  库存: <span className="text-stone-200 font-mono">{item.stock}</span>
                                               </div>
                                           </div>
                                           
@@ -419,11 +422,12 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                               <div className="flex items-center gap-1.5 text-dungeon-red font-bold font-mono bg-red-950/30 px-3 py-1 rounded border border-red-900/50">
                                                   <LucideCoins size={14}/> {item.buyPrice}
                                               </div>
+                                              {/* 核心优化：购买按钮的样式重构，与交付按钮手感统一 */}
                                               <button 
                                                   onClick={() => handleBuyItem(item)}
-                                                  className="px-6 py-2 bg-stone-800 hover:bg-stone-200 text-stone-400 hover:text-black text-xs font-bold tracking-widest uppercase transition-all rounded shadow-md border border-stone-600 hover:border-white"
+                                                  className="px-6 py-2 bg-dungeon-red text-white hover:bg-red-500 text-xs font-bold tracking-widest uppercase transition-all rounded shadow-[0_0_15px_rgba(153,27,27,0.4)] hover:shadow-[0_0_20px_rgba(220,38,38,0.6)] hover:scale-105"
                                               >
-                                                  购入 (BUY)
+                                                  立刻购入
                                               </button>
                                           </div>
                                       </div>
@@ -560,7 +564,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                             setRecruitmentResult(newAgent);
                                         }, 3000);
                                     } else {
-                                        alert("资金不足！培养标准素体需要 2000 资金。");
+                                        showToast("资金不足！培养标准素体需要 2000 资金。");
                                     }
                                 }}
                             >
@@ -812,6 +816,18 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           <TabButton id="MISSION" icon={<LucideMap size={18} />} label="任务" />
           <TabButton id="TRADE" icon={<LucideShoppingCart size={18} />} label="交易" />
       </div>
+
+     {/* 核心优化：全局浮动 Toast 提示面板 (小巧、透明、快速) */}
+      {toast && (
+          <div className={`absolute top-12 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2 rounded shadow-lg font-bold tracking-widest flex items-center gap-2 text-xs transition-all pointer-events-none backdrop-blur-sm
+              ${toast.type === 'error' ? 'bg-red-950/80 border border-red-900/50 text-red-200 shadow-[0_0_15px_rgba(153,27,27,0.5)]' : 'bg-stone-900/80 border border-stone-600/50 text-stone-300 shadow-[0_0_15px_rgba(0,0,0,0.8)]'}
+          `}>
+              <span className={toast.type === 'error' ? 'text-red-500 animate-pulse text-sm' : 'text-dungeon-gold text-sm'}>
+                  {toast.type === 'error' ? '⚠️' : '✓'}
+              </span>
+              {toast.msg}
+          </div>
+      )}
 
     </div>
   );
