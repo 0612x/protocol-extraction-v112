@@ -1993,7 +1993,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                   <LucideLayers size={20} className="text-stone-600 group-hover:text-stone-400 transition-colors" />
                   <div className="absolute -bottom-5 text-[9px] font-mono text-stone-600 font-bold tracking-widest">DECK</div>
               </div>
-
+{/* 测试专供：上帝模式 (God Mode) */}
+              <button 
+                  onClick={() => updatePlayer(prev => ({ 
+                      ...prev, 
+                      currentHp: 9999, 
+                      maxHp: 9999, 
+                      shield: 9999 
+                  }))}
+                  className="absolute left-2 top-2 md:left-6 md:top-auto md:bottom-36 px-3 py-1.5 bg-red-950/80 border border-red-900 text-red-500 text-[10px] font-bold font-mono tracking-widest rounded shadow-[0_0_15px_rgba(153,27,27,0.5)] hover:bg-red-900 hover:text-white hover:border-red-500 transition-all z-50"
+              >
+                  GOD MODE
+              </button>
               <div className="absolute bottom-0 left-1/2 w-0 h-full z-20">
                 {hand.map((cardObj, idx) => {
                    const card = cardObj.type;
