@@ -247,7 +247,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         let placed = false;
         let attempts = 0;
         
-        // Create Rectangular Mask for Unidentified State
         const rows = template.shape.length;
         const cols = template.shape[0]?.length || 0;
         const rectShape = Array.from({ length: rows }, () => Array(cols).fill(1));
@@ -256,17 +255,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
            const randX = Math.floor(Math.random() * CONTAINER_WIDTH);
            const randY = Math.floor(Math.random() * CONTAINER_HEIGHT);
            
-           const newItem: GridItem = {
+           const newItem = {
                ...template,
                id: `loot-${Date.now()}-${i}`,
                x: randX,
                y: randY,
-               rotation: 0,
+               rotation: 0 as const,
                isIdentified: false,
-               shape: rectShape, // Use Rectangle initially
-               originalShape: template.shape, // Store real shape
-               quantity: 1
-           };
+               // 核心修复1：物理与视觉统一。未鉴定时 originalShape 和 shape 都强制为实心矩形，拒绝缝隙塞物！
+               shape: rectShape, 
+               originalShape: rectShape, 
+               quantity: 1,
+               realShape: template.shape // 偷偷备份它的真实形状
+           } as unknown as GridItem;
            
            if (canPlaceItem(currentGrid, newItem, randX, randY)) {
                currentGrid = placeItemInGrid(currentGrid, newItem, randX, randY);
@@ -299,17 +300,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
            const randX = Math.floor(Math.random() * (externalInventory ? externalInventory.width : CONTAINER_WIDTH));
            const randY = Math.floor(Math.random() * (externalInventory ? externalInventory.height : CONTAINER_HEIGHT));
            
-           const newItem: GridItem = {
+           const newItem = {
                ...template,
                id: `loot-test-${Date.now()}`,
                x: randX,
                y: randY,
-               rotation: 0,
+               rotation: 0 as const,
                isIdentified: false,
-               originalShape: template.shape,
+               // 核心修复1：物理与视觉统一
+               originalShape: rectShape,
                shape: rectShape,
-               quantity: 1
-           };
+               quantity: 1,
+               realShape: template.shape
+           } as unknown as GridItem;
            
            if (canPlaceItem(currentGrid, newItem, randX, randY)) {
                currentGrid = placeItemInGrid(currentGrid, newItem, randX, randY);
@@ -532,8 +535,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const completeSearch = (itemId: string) => {
       const updateList = (items: GridItem[]) => items.map(item => {
-          if (item.id === itemId && item.originalShape) {
-               return { ...item, isIdentified: true, shape: item.originalShape };
+          if (item.id === itemId) {
+               // 核心修复2：鉴定成功后，取出偷偷备份的真实异形形状，并叠加上这期间玩家对盲盒进行过的旋转操作
+               const realShape = (item as any).realShape || item.originalShape;
+               let currentShape = realShape.map((row: number[]) => [...row]);
+               
+               for (let i = 0; i < (item.rotation || 0) / 90; i++) {
+                   currentShape = rotateMatrix(currentShape);
+               }
+               return { ...item, isIdentified: true, shape: currentShape, originalShape: realShape };
           }
           return item;
       });
