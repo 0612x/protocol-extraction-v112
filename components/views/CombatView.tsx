@@ -64,7 +64,8 @@ const INTENT_LABELS: Record<string, string> = {
     'HEAL': '再生',
     'DEBUFF': '诅咒',
     'POLLUTE': '精神侵蚀',
-    'WAIT': '窥视'
+    'WAIT': '窥视',
+    'DEFEND': '防守'
 };
 
 const getBlueprintCategory = (bp: Blueprint): string => {
@@ -503,7 +504,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
              triggerVfx('THUNDER', 50, 60, `${d3}`);
              
              // Apply Total
-             setEnemy(prev => ({ ...prev, currentHp: Math.max(0, prev.currentHp - totalBurst) }));
+             setEnemy(prev => {
+                 let dmg = totalBurst;
+                 let nextShield = prev.shield;
+                 if (nextShield >= dmg) {
+                     nextShield -= dmg;
+                     dmg = 0;
+                 } else {
+                     dmg -= nextShield;
+                     nextShield = 0;
+                 }
+                 return { ...prev, currentHp: Math.max(0, prev.currentHp - dmg), shield: nextShield };
+             });
         }, 400);
 
         damage = 0; // Handled manually
@@ -529,11 +541,23 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
              triggerVfx('TEXT', 50, 30, `${totalDmg}`, 'text-yellow-400', <LucideZap size={28}/>);
              triggerShake('lg');
 
-             setEnemy(prev => ({ 
-                ...prev, 
-                currentHp: Math.max(0, prev.currentHp - totalDmg),
-                statuses: { ...prev.statuses, SHOCK: 0 } // Consume all shock
-             }));
+             setEnemy(prev => {
+                 let dmg = totalDmg;
+                 let nextShield = prev.shield;
+                 if (nextShield >= dmg) {
+                     nextShield -= dmg;
+                     dmg = 0;
+                 } else {
+                     dmg -= nextShield;
+                     nextShield = 0;
+                 }
+                 return { 
+                    ...prev, 
+                    currentHp: Math.max(0, prev.currentHp - dmg),
+                    shield: nextShield,
+                    statuses: { ...prev.statuses, SHOCK: 0 } // Consume all shock
+                 };
+             });
              damage = 0; // Prevent base damage logic
         } else {
              // Fallback if no shock stacks (shouldn't happen with priming)
@@ -659,9 +683,20 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           let nextShock = prev.statuses['SHOCK'] || 0;
           if (isShocked) nextShock = Math.max(0, nextShock - 1);
 
+          let dmg = finalDmg;
+          let nextShield = prev.shield;
+          if (nextShield >= dmg) {
+              nextShield -= dmg;
+              dmg = 0;
+          } else {
+              dmg -= nextShield;
+              nextShield = 0;
+          }
+
           return { 
               ...prev, 
-              currentHp: Math.max(0, prev.currentHp - finalDmg),
+              currentHp: Math.max(0, prev.currentHp - dmg),
+              shield: nextShield,
               statuses: { ...prev.statuses, SHOCK: nextShock }
           };
       });
@@ -762,9 +797,21 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           setEnemy(prev => {
               let nextShock = prev.statuses['SHOCK'] || 0;
               if (isShocked) nextShock = Math.max(0, nextShock - 1);
+              
+              let dmg = finalDmg;
+              let nextShield = prev.shield;
+              if (nextShield >= dmg) {
+                  nextShield -= dmg;
+                  dmg = 0;
+              } else {
+                  dmg -= nextShield;
+                  nextShield = 0;
+              }
+
               return { 
                   ...prev, 
-                  currentHp: Math.max(0, prev.currentHp - finalDmg),
+                  currentHp: Math.max(0, prev.currentHp - dmg),
+                  shield: nextShield,
                   statuses: { ...prev.statuses, SHOCK: nextShock }
           };
           });
@@ -828,9 +875,21 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                  let nextShock = prev.statuses['SHOCK'] || 0;
                  if (isShocked) nextShock = Math.max(0, nextShock - 1); 
                  nextShock += 1; 
+
+                 let dmg = finalDmg;
+                 let nextShield = prev.shield;
+                 if (nextShield >= dmg) {
+                     nextShield -= dmg;
+                     dmg = 0;
+                 } else {
+                     dmg -= nextShield;
+                     nextShield = 0;
+                 }
+
                  return { 
                     ...prev, 
-                    currentHp: Math.max(0, prev.currentHp - finalDmg),
+                    currentHp: Math.max(0, prev.currentHp - dmg),
+                    shield: nextShield,
                     statuses: { ...prev.statuses, SHOCK: nextShock } 
                 };
             });
@@ -1020,10 +1079,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
          }
      }
      
-     if (roll < 0.6) {
+     if (roll < 0.5) {
          return { type: 'ATTACK', value: 3 + stageBonus + turnBonus, description: '攻击', turnsRemaining: 1 };
-     } else if (roll < 0.85) {
+     } else if (roll < 0.7) {
          return { type: 'ATTACK', value: 4 + stageBonus + turnBonus, description: '重击', turnsRemaining: 2 };
+     } else if (roll < 0.85) {
+         return { type: 'DEFEND', value: 5 + stageBonus * 2, description: '护甲强化', turnsRemaining: 1 };
      } else {
          return { type: 'HEAL', value: 3 + stageBonus, description: '整顿', turnsRemaining: 1 };
      }
@@ -1154,6 +1215,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
         addLog(`>> 敌方回复: +${intent.value} HP`);
         triggerVfx('HEAL', 50, 30);
         triggerVfx('TEXT', 50, 20, `+${intent.value}`, 'text-green-500', <LucideHeart size={20}/>);
+    } else if (intent.type === 'DEFEND') {
+        setEnemy(prev => ({
+            ...prev,
+            shield: prev.shield + intent.value
+        }));
+        addLog(`>> 敌方防守: +${intent.value} 护甲`);
+        triggerVfx('BLOCK', 50, 30);
+        triggerVfx('TEXT', 50, 20, `+${intent.value}`, 'text-stone-300', <LucideShield size={20}/>);
     } else if (intent.type === 'BUFF') {
        if (intent.description === '狂暴') {
            setEnemy(prev => ({
@@ -1287,7 +1356,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
                 if (prevPlayer.thorns > 0) {
                     const thornDmg = prevPlayer.thorns;
-                    setEnemy(e => ({...e, currentHp: Math.max(0, e.currentHp - thornDmg)}));
+                    setEnemy(e => {
+                        let dmg = thornDmg;
+                        let nextShield = e.shield;
+                        if (nextShield >= dmg) {
+                            nextShield -= dmg;
+                            dmg = 0;
+                        } else {
+                            dmg -= nextShield;
+                            nextShield = 0;
+                        }
+                        return {...e, currentHp: Math.max(0, e.currentHp - dmg), shield: nextShield};
+                    });
                     addLog(`>> 荆棘反伤: 敌人受到 ${thornDmg} 点伤害`);
                     triggerVfx('TEXT', 80, 50, `-${thornDmg}`, 'text-red-500', <LucideSprout size={20}/>);
                 }
@@ -1742,6 +1822,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                                 <LucideSprout size={28} className="text-teal-500 animate-pulse"/>
                              ) : 
                              enemy.intents[0].type === 'HEAL' ? <LucidePlus size={28} className="text-green-600 animate-bounce"/> :
+                             enemy.intents[0].type === 'DEFEND' ? <LucideShield size={28} className="text-stone-400 animate-pulse"/> :
                              enemy.intents[0].type === 'BUFF' ? <LucideTrendingUp size={28} className="text-orange-600"/> :
                              enemy.intents[0].type === 'DEBUFF' ? <LucideHeartCrack size={28} className="text-stone-400"/> :
                              <LucideOrbit size={28} className="text-stone-500 animate-spin-slow"/>}
@@ -1887,9 +1968,17 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                        <span className="text-sm font-display font-bold text-stone-200 tracking-[0.15em] uppercase drop-shadow-md truncate max-w-[200px]">
                            {enemy.name}
                        </span>
-                       <span className="text-xs font-mono text-dungeon-red tracking-widest font-bold">
-                           {enemy.currentHp} <span className="text-stone-600 text-[10px]">/ {enemy.maxHp}</span>
-                       </span>
+                       <div className="flex items-center gap-3">
+                           {enemy.shield > 0 && (
+                               <div className="flex items-center gap-1 text-stone-400 font-mono text-sm font-bold bg-stone-800/80 px-1.5 rounded shadow-sm">
+                                   <LucideShield size={14} className="text-stone-400" />
+                                   {enemy.shield}
+                               </div>
+                           )}
+                           <span className="text-xs font-mono text-dungeon-red tracking-widest font-bold">
+                               {enemy.currentHp} <span className="text-stone-600 text-[10px]">/ {enemy.maxHp}</span>
+                           </span>
+                       </div>
                    </div>
                    
                    {/* HP Bar Container */}

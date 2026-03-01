@@ -157,7 +157,8 @@ export default function App() {
             intents: [
                 { type: 'ATTACK', value: 4, description: '锈刀挥砍', turnsRemaining: 1 },
                 // Changed from '格挡姿态' to '硬化' (Thorns) to match CombatView logic
-                { type: 'BUFF', value: 3, description: '硬化', turnsRemaining: 1 }
+                { type: 'BUFF', value: 3, description: '硬化', turnsRemaining: 1 },
+                { type: 'DEFEND', value: 10, description: '举盾', turnsRemaining: 1 }
             ]
         },
         3: {
@@ -205,6 +206,7 @@ export default function App() {
       name: config.name!,
       maxHp: scaledHp,
       currentHp: scaledHp,
+      shield: 0,
       statuses: {},
       intents: scaledIntents,
       currentIntentIndex: 0

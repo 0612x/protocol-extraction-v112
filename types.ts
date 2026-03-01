@@ -91,7 +91,7 @@ export interface CardData {
 }
 
 export interface EnemyIntent {
-  type: 'ATTACK' | 'BUFF' | 'DEBUFF' | 'POLLUTE' | 'WAIT' | 'HEAL'; 
+  type: 'ATTACK' | 'BUFF' | 'DEBUFF' | 'POLLUTE' | 'WAIT' | 'HEAL' | 'DEFEND'; 
   value: number;
   description: string;
   turnsRemaining: number;
@@ -101,6 +101,7 @@ export interface Enemy {
   name: string;
   maxHp: number;
   currentHp: number;
+  shield: number;
   intents: EnemyIntent[];
   currentIntentIndex: number;
   statuses: Record<string, number>;
