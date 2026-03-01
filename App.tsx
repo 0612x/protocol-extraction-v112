@@ -71,18 +71,22 @@ const INITIAL_META_STATE: MetaState = {
       grade: 'SS',
       level: 0,
       exp: 0,
-      stats: INITIAL_PLAYER,
+      stats: { ...INITIAL_PLAYER, charge: 0 },
       inventory: INITIAL_INVENTORY
     },
-    ...AGENT_TEMPLATES.filter(a => a.quality === 'GREEN' || a.quality === 'BLUE').map((tmpl, idx) => ({
+    // 初始化所有拥有技能的素体（绿/蓝/紫/金）
+    ...AGENT_TEMPLATES.filter(a => a.quality !== 'WHITE').map((tmpl, idx) => ({
       ...tmpl,
       id: `test-agent-${idx}`,
-      exp: 0,
+      level: 4,
+      exp:1400,
       status: 'ALIVE' as const,
       stats: {
           ...INITIAL_PLAYER,
-          level: tmpl.level || 1,
+          level: 4,
+          charge: 0, // 初始充能槽归零
           passiveSkill: tmpl.passiveSkill,
+          activeSkill: (tmpl as any).activeSkill,
           maxHp: tmpl.stats?.maxHp || 30,
           currentHp: tmpl.stats?.maxHp || 30
       },
@@ -145,7 +149,7 @@ export default function App() {
     setPlayer(prev => {
             const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
             const baseMaxHp = activeChar?.stats.maxHp || INITIAL_PLAYER.maxHp;
-            const newMaxHp = Math.max(1, baseMaxHp + hpBonus); 
+            const newMaxHp = Math.max(1, baseMaxHp + hpBonus + (prev.runMaxHpBonus || 0)); 
             const newCurrentHp = Math.min(prev.currentHp, newMaxHp);
             
             // 计算基于当前血量上限的护甲被动
@@ -176,7 +180,7 @@ export default function App() {
             maxHp: 54, // Buffed: 36 * 1.5
             intents: [
                 { type: 'ATTACK', value: 3, description: '撞击', turnsRemaining: 1 }, 
-                { type: 'WAIT', value: 0, description: '蠕动', turnsRemaining: 1 }
+                { type: 'DEFEND', value: 4, description: '蜷缩', turnsRemaining: 1 }
             ]
         },
         2: {
@@ -370,18 +374,21 @@ export default function App() {
     // 初始化被动和经验
     setPlayer({
         ...char.stats,
+        charge: 0, // 重置主动充能
         pendingExp: 0,
-        runDamageBonus: 0 // 重置局内临时伤害（暴徒被动）
+        runDamageBonus: 0, // 重置局内临时伤害
+        runMaxHpBonus: 0 // 重置死灵血量加成
     });
     setInventory(char.inventory);
 
     setDepth(1);
     setStage(1);
-    startCombat(1, 1);
+    startCombat(1, 1, char.id);
   };
 
-  const startCombat = (level: number, currentStage: number) => {
-    setEnemy(generateEnemy(level, currentStage));
+  const startCombat = (level: number, currentStage: number, overrideCharId?: string) => {
+    setEnemy(() => generateEnemy(level, currentStage));
+
     // Apply start-of-combat stats (Shield)
     setPlayer(prev => {
         // 修复重装被动：开战时动态计算 10% 最大生命值的护甲并叠加
@@ -400,17 +407,26 @@ export default function App() {
     // 经验结算与被动触发
     const expGain = stage === 5 ? 100 : stage >= 4 ? 30 : 15;
     setPlayer(prev => {
+        let runHpBonus = prev.runMaxHpBonus || 0;
+        if (prev.passiveSkill?.id === 'necromancer' && prev.level >= 2) {
+            runHpBonus += 2; // 死灵击杀增加上限
+        }
+
         let newHp = prev.currentHp;
         if (prev.passiveSkill?.id === 'medic' && prev.level >= 2) {
-            newHp = Math.min(prev.maxHp, newHp + Math.floor(prev.maxHp * 0.10));
+            newHp = Math.min(prev.maxHp + (runHpBonus - (prev.runMaxHpBonus || 0)), newHp + Math.floor(prev.maxHp * 0.10));
         }
+
         let runDmgBonus = prev.runDamageBonus || 0;
         if (prev.passiveSkill?.id === 'thug' && prev.level >= 2) {
-            runDmgBonus += 1; // 使用单独的局内伤害字段，防止捡装备时被覆盖重置
+            runDmgBonus += 1;
         }
+
         return {
             ...prev,
+            maxHp: prev.maxHp + (runHpBonus - (prev.runMaxHpBonus || 0)),
             currentHp: newHp,
+            runMaxHpBonus: runHpBonus,
             runDamageBonus: runDmgBonus,
             pendingExp: prev.pendingExp + expGain
         };

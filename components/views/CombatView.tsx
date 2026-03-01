@@ -106,16 +106,41 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   const [timeLeft, setTimeLeft] = useState(TURN_LIMIT);
 
   // --- CHECK WIN/LOSS ---
+  // --- Start of Combat Passives (Visuals) ---
   useEffect(() => {
-      if (player.currentHp <= 0 && !isGodMode) {
-          onLose();
-      } else if (enemy.currentHp <= 0) {
-          onWin();
-      } else if (combatType === 'EXTRACTION' && turn > 3) {
-          // Survival Win Condition
-          onWin();
+      if (turn === 1 && enemy.currentHp === enemy.maxHp) {
+          if (player.passiveSkill?.id === 'void' && player.level >= 2) {
+              setTimeout(() => {
+                  const cut = Math.floor(enemy.maxHp * 0.1);
+                  setEnemy(prev => ({ ...prev, maxHp: prev.maxHp - cut, currentHp: Math.max(1, prev.currentHp - cut) }));
+                  addLog('>> 虚无剥夺: 扣除敌人 10% 生命上限');
+                  triggerVfx('TEXT', 50, 30, '被动: 虚无剥夺', 'text-purple-500');
+                  triggerShake('sm');
+              }, 600);
+          }
+          if (player.passiveSkill?.id === 'bulwark' && player.level >= 2) {
+              setTimeout(() => triggerVfx('TEXT', 50, 70, '被动: 坚毅', 'text-stone-300'), 300);
+          }
       }
-  }, [player.currentHp, enemy.currentHp, turn, combatType, isGodMode]);
+  }, [currentStage]);
+
+  useEffect(() => {
+    if (player.currentHp <= 0 && !isGodMode) {
+      if (player.passiveSkill?.id === 'valkyrie' && player.level >= 2 && !(player.statuses['VALKYRIE_USED'] > 0)) {
+          updatePlayer(prev => ({ ...prev, currentHp: Math.floor(prev.maxHp * 0.5), statuses: { ...prev.statuses, VALKYRIE_USED: 1 } }));
+          addLog('>> 瓦尔哈拉之光: 英雄不朽，立刻复活！');
+          triggerShake('lg');
+          triggerVfx('HEAL', 50, 50, '复活', 'text-yellow-400');
+      } else {
+          onLose();
+      }
+    } else if (enemy.currentHp <= 0) {
+      onWin();
+    } else if (combatType === 'EXTRACTION' && turn > 3) {
+        // Survival Win Condition
+        onWin();
+    }
+  }, [player.currentHp, enemy.currentHp, turn, combatType, isGodMode, player.activeSkill, player.level, player.charge]);
   
   // Archive Modal State
   const [archiveCategory, setArchiveCategory] = useState<string>('ALL');
@@ -177,6 +202,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 故意省略 executeEnemyTurn 防止无限触发
 
+  // 先知：回合初记录时间回溯锚点
   useEffect(() => {
       if (!isPlayerTurn || isProcessing || showMenu) return; // 思考锁定时或打开菜单时暂停倒计时
       const timer = setInterval(() => {
@@ -350,9 +376,19 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
       });
   };
 
-  const calculateDamageInfo = (baseDamage: number, target: Enemy): { damage: number, isShocked: boolean } => {
+  const calculateDamageInfo = (baseDamage: number, target: Enemy): { damage: number, isShocked: boolean, isBloodhound?: boolean } => {
      let dmg = baseDamage;
      let isShocked = false;
+     let isBh = false;
+
+     const isHighRoller = playerRef.current.passiveSkill?.id === 'high_roller' && playerRef.current.level >= 2;
+     if (isHighRoller) dmg = Math.floor(dmg * (0.5 + Math.random() * 1.5));
+
+     const isBloodhound = playerRef.current.passiveSkill?.id === 'bloodhound' && playerRef.current.level >= 2;
+     if (isBloodhound && (target.statuses['BLEED'] || 0) > 0) {
+         dmg = Math.floor(dmg * 1.5);
+         isBh = true;
+     }
 
      if ((playerRef.current.statuses['WEAK'] || 0) > 0) {
          dmg = Math.max(1, dmg - 1);
@@ -703,9 +739,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
     }
 
     if (shield > 0) {
+      const isAegis = playerRef.current.passiveSkill?.id === 'aegis' && playerRef.current.level >= 2;
+      const finalShield = isAegis ? Math.floor(shield * 1.2) : shield;
+
       triggerVfx('BLOCK', 20, 75); 
-      triggerVfx('TEXT', 20, 70, `+${shield}`, 'text-stone-300', <LucideShield size={20}/>);
-      updatePlayer(prev => ({ ...prev, shield: prev.shield + shield }));
+      triggerVfx('TEXT', 20, 70, `+${finalShield}`, 'text-stone-300', <LucideShield size={20}/>);
+      updatePlayer(prev => ({ ...prev, shield: prev.shield + finalShield }));
     }
 
     if (bp.statusEffect) {
@@ -787,10 +826,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           // 刺客被动
           if (playerRef.current.passiveSkill?.id === 'assassin' && playerRef.current.level >= 2 && Math.random() < 0.05) {
               dmg *= 2;
-              triggerVfx('TEXT', 50, 40, '致命弱点!', 'text-purple-400');
+              triggerVfx('TEXT', 50, 40, '被动: 致命弱点!', 'text-purple-400');
           }
-          const { damage: finalDmg, isShocked } = calculateDamageInfo(dmg, currentEnemy);
+          const { damage: finalDmg, isShocked, isBloodhound } = calculateDamageInfo(dmg, currentEnemy);
           
+          if (isBloodhound) {
+              triggerVfx('TEXT', 50, 40, '被动: 鲜血渴望', 'text-red-500');
+          }
+
           triggerVfx('SLASH', 50, 30);
           triggerVfx('TEXT', 50, 20, `-${finalDmg}`, 'text-dungeon-red', isShocked ? <LucideZap size={20}/> : <LucideSword size={20}/>);
           if (isShocked) triggerVfx('TEXT', 50, 50, '暴击!', 'text-yellow-400');
@@ -822,13 +865,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           checkEnemyThorns();
         } 
         else if (c === CardType.BLOCK) {
-          const blk = 2 + shieldBonus;
+          let blk = 2 + shieldBonus;
+          if (playerRef.current.passiveSkill?.id === 'aegis' && playerRef.current.level >= 2) {
+              blk = Math.floor(blk * 1.2);
+              triggerVfx('TEXT', 50, 60, '被动: 绝对防御', 'text-stone-300');
+          }
+          
           triggerVfx('BLOCK', 20, 75);
           triggerVfx('TEXT', 20, 65, `+${blk}`, 'text-stone-300', <LucideShield size={20}/>);
           setScreenFlash('bg-stone-500/10');
           setTimeout(() => setScreenFlash(null), 100);
           updatePlayer(prev => ({ ...prev, shield: prev.shield + blk }));
-        } 
+        }
         else if (c === CardType.TECH) {
            triggerVfx('BUFF', 50, 80);
            triggerVfx('TEXT', 50, 70, '战术', 'text-amber-400', <LucideBookOpen size={20}/>);
@@ -1042,16 +1090,20 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
         triggerVfx('HEAL', 20, 80);
     }
 
-    if (newHand.length <= HAND_SIZE) {
+    const hackerBonus = (playerRef.current.passiveSkill?.id === 'hacker' && playerRef.current.level >= 2) ? 1 : 0;
+    if (newHand.length <= HAND_SIZE + hackerBonus) {
         setIsDiscarding(false);
         executeEnemyTurn();
     }
   };
 
   const attemptEndTurn = () => {
-      if (hand.length > HAND_SIZE) {
+      const hackerBonus = (playerRef.current.passiveSkill?.id === 'hacker' && playerRef.current.level >= 2) ? 1 : 0;
+      const effectiveHandSize = HAND_SIZE + hackerBonus;
+
+      if (hand.length > effectiveHandSize) {
           setIsDiscarding(true);
-          addLog(`>> 手牌上限! 需丢弃 ${hand.length - HAND_SIZE} 张`);
+          addLog(`>> 手牌上限! 需丢弃 ${hand.length - effectiveHandSize} 张`);
           return;
       }
       executeEnemyTurn();
@@ -1137,9 +1189,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                 sts['CORROSION'] -= 1;
             }
             if ((sts['WEAK'] || 0) > 0) sts['WEAK'] -= 1;
+        if ((sts['INVINCIBLE'] || 0) > 0) sts['INVINCIBLE'] -= 1;
 
-            return { ...prev, currentHp: hp, statuses: sts };
-        });
+        return { ...prev, currentHp: hp, statuses: sts };
+    });
 
         // Draw cards
         const bonusDraw = playerRef.current.statuses['DRAW_BONUS'] || 0;
@@ -1159,6 +1212,9 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
     addLog('>> ------------------');
     const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // 玩家回合结束，累加充能 (Active Skill)
+    updatePlayer(p => ({ ...p, charge: Math.min(10, (p.charge || 0) + 1) }));
+
     // DOTS Logic
     if ((enemyRef.current.statuses['BLEED'] || 0) > 0) {
         const bleedDmg = enemyRef.current.statuses['BLEED'];
@@ -1174,10 +1230,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
     if ((enemyRef.current.statuses['BURN'] || 0) > 0) {
         const burnDmg = 2; 
+        const isPyro = playerRef.current.passiveSkill?.id === 'pyro' && playerRef.current.level >= 2;
         setEnemy(prev => ({
              ...prev, 
              currentHp: Math.max(0, prev.currentHp - burnDmg),
-             statuses: { ...prev.statuses, BURN: Math.max(0, prev.statuses['BURN'] - 1) } 
+             statuses: { ...prev.statuses, BURN: isPyro ? prev.statuses['BURN'] : Math.max(0, prev.statuses['BURN'] - 1) } 
         }));
         addLog(`>> 敌方燃烧: -${burnDmg} HP`);
         triggerVfx('BURN', 50, 30);
@@ -1235,11 +1292,17 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
         triggerVfx('HEAL', 50, 30);
         triggerVfx('TEXT', 50, 20, `+${intent.value}`, 'text-green-500', <LucideHeart size={20}/>);
     } else if (intent.type === 'DEFEND') {
+        const isTyrant = playerRef.current.passiveSkill?.id === 'tyrant' && playerRef.current.level >= 2;
+        const shieldVal = isTyrant ? Math.floor(intent.value / 2) : intent.value;
         setEnemy(prev => ({
             ...prev,
-            shield: prev.shield + intent.value
+            shield: prev.shield + shieldVal
         }));
-        addLog(`>> 敌方防守: +${intent.value} 护甲`);
+        if (isTyrant) {
+            setTimeout(() => triggerVfx('TEXT', 50, 30, '被动: 绝对碾压', 'text-red-500'), 300);
+            addLog(`>> 绝对碾压: 护甲获取减半`);
+        }
+        addLog(`>> 敌方防守: +${shieldVal} 护甲`);
         triggerVfx('BLOCK', 50, 30);
         triggerVfx('TEXT', 50, 20, `+${intent.value}`, 'text-stone-300', <LucideShield size={20}/>);
     } else if (intent.type === 'BUFF') {
@@ -1347,10 +1410,17 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
         let newStatuses = { ...prevPlayer.statuses };
 
         if (attackDamage > 0) {
-            if (isGodMode) {
+            const isPhantom = playerRef.current.passiveSkill?.id === 'phantom' && playerRef.current.level >= 2;
+            const isBehemoth = playerRef.current.passiveSkill?.id === 'behemoth' && playerRef.current.level >= 2;
+            
+            if (isBehemoth) {
+                attackDamage = Math.max(0, attackDamage - 1);
+            }
+
+            if (isGodMode || (newStatuses['INVINCIBLE'] || 0) > 0) {
                 attackDamage = 0;
-                addLog('>> [GOD MODE] 伤害已免疫');
-            } else if ((newStatuses['DODGE'] || 0) > 0) {
+                addLog(`>> ${isGodMode ? '[GOD MODE]' : '虚空潜行'}: 伤害已免疫`);
+            } else if ((newStatuses['DODGE'] || 0) > 0 || (isPhantom && Math.random() < 0.05)) {
                 attackDamage = 0;
                 newStatuses['DODGE'] = Math.max(0, newStatuses['DODGE'] - 1);
                 addLog('>> 闪避成功! 伤害无效化');
@@ -1412,9 +1482,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
         // THORNS Logic: Decays by 1 every turn (Temporary Defense)
         if ((newStatuses['THORNS'] || 0) > 0) newStatuses['THORNS'] -= 1;
+        if ((newStatuses['STUN'] || 0) > 0) newStatuses['STUN'] -= 1;
         
-        const nextIntent = decideNextIntent(prev, player); 
-        return { ...prev, statuses: newStatuses, intents: [nextIntent], currentIntentIndex: 0 };
+        // Oracle Prescience: Generate 2 steps ahead
+        const nextIntent1 = prev.intents[1] || decideNextIntent(prev, player);
+        const mockedEnemyForNext = { ...prev, intents: [nextIntent1] }; 
+        const nextIntent2 = decideNextIntent(mockedEnemyForNext, player);
+
+        return { ...prev, statuses: newStatuses, intents: [nextIntent1, nextIntent2], currentIntentIndex: 0 };
     });
 
     finishTurn();
@@ -1711,6 +1786,101 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
     </div>
   );
 
+  const handleActiveSkill = () => {
+      if (player.charge < 10 || player.level < 4 || !player.activeSkill) return;
+
+      const skillId = player.activeSkill.id;
+      updatePlayer(prev => ({ ...prev, charge: 0 }));
+      addLog(`>> 释放主动技能: ${player.activeSkill.name}`);
+      triggerShake('lg');
+      triggerVfx('TEXT', 50, 40, player.activeSkill.name, 'text-dungeon-gold');
+
+      if (skillId === 'bloodhound') {
+          setEnemy(prev => ({ ...prev, currentHp: Math.max(0, prev.currentHp - 15), statuses: { ...prev.statuses, BLEED: (prev.statuses['BLEED'] || 0) + 3 } }));
+          triggerVfx('SLASH', 50, 50, '-15 真伤');
+      } else if (skillId === 'valkyrie') {
+          updatePlayer(prev => ({ ...prev, currentHp: Math.max(1, prev.currentHp - 10) }));
+          const isCrit = Math.random() < 0.5;
+          const dmg = isCrit ? 40 : 20;
+          setEnemy(prev => {
+              let finalShield = prev.shield; let d = dmg;
+              if (finalShield >= d) { finalShield -= d; d = 0; } else { d -= finalShield; finalShield = 0; }
+              return { ...prev, shield: finalShield, currentHp: Math.max(0, prev.currentHp - d) };
+          });
+          triggerVfx('THUNDER', 50, 50, isCrit ? `-${dmg} 暴击!` : `-${dmg}`, isCrit ? 'text-yellow-400' : 'text-stone-300');
+      } else if (skillId === 'aegis') {
+          updatePlayer(prev => ({ ...prev, shield: prev.shield + prev.currentHp }));
+          triggerVfx('BLOCK', 20, 75, '力场超载');
+      } else if (skillId === 'phantom') {
+          updatePlayer(prev => ({ ...prev, statuses: { ...prev.statuses, DODGE: (prev.statuses['DODGE'] || 0) + 2 } }));
+          triggerVfx('GHOST', 50, 50, '虚空潜行');
+      } else if (skillId === 'pyro') {
+          const burn = enemyRef.current.statuses['BURN'] || 0;
+          if (burn > 0) {
+              setEnemy(prev => ({ ...prev, currentHp: Math.max(0, prev.currentHp - burn) }));
+              triggerVfx('BURN', 50, 50, `-${burn} 爆燃`);
+          }
+      } else if (skillId === 'hacker') {
+          setEnemy(prev => {
+              const ints = [...prev.intents];
+              if (ints[0] && ints[0].type === 'ATTACK') ints[0].value = Math.floor(ints[0].value * 0.8);
+              return { ...prev, intents: ints };
+          });
+          triggerVfx('DEBUFF', 50, 20, '数据窃取');
+      } else if (skillId === 'necromancer') {
+          const cost = Math.floor(playerRef.current.currentHp * 0.5);
+          const dmg = cost * 2;
+          updatePlayer(prev => ({ ...prev, currentHp: prev.currentHp - cost }));
+          setEnemy(prev => {
+              let finalShield = prev.shield; let d = dmg;
+              if (finalShield >= d) { finalShield -= d; d = 0; } else { d -= finalShield; finalShield = 0; }
+              return { ...prev, shield: finalShield, currentHp: Math.max(0, prev.currentHp - d) };
+          });
+          triggerVfx('SLASH', 50, 50, `-${dmg} 爆发`);
+      } else if (skillId === 'tyrant') {
+          if (enemyRef.current.currentHp <= 30) {
+              if (Math.random() < 0.7) {
+                  setEnemy(prev => ({ ...prev, currentHp: 0 }));
+                  triggerVfx('SLASH', 50, 50, '处决成功', 'text-red-600');
+              } else addLog('>> 处决失败...');
+          } else addLog('>> 目标生命值过高，无法处决');
+      } else if (skillId === 'oracle') {
+          setEnemy(prev => {
+              const newIntents = [...prev.intents];
+              if (newIntents[0]) newIntents[0] = { type: 'WAIT', value: 0, description: '窥视', turnsRemaining: 1 };
+              return { ...prev, intents: newIntents };
+          });
+          drawCards(3);
+          addLog('>> 命运篡改: 改变了敌人的意图！');
+          triggerVfx('BUFF', 50, 50, '命运篡改', 'text-blue-400');
+      } else if (skillId === 'behemoth') {
+          const shieldGain = Math.floor(playerRef.current.maxHp * 0.5);
+          updatePlayer(prev => ({ ...prev, shield: prev.shield + shieldGain }));
+          setEnemy(prev => {
+              const newIntents = [...prev.intents];
+              if (newIntents[0]) newIntents[0] = { type: 'WAIT', value: 0, description: '窥视', turnsRemaining: 1 };
+              return { ...prev, intents: newIntents };
+          });
+          addLog(`>> 撼地践踏: 获得 ${shieldGain} 护甲，并震慑了敌人！`);
+          triggerVfx('BLOCK', 50, 50, `+${shieldGain} 护甲`, 'text-stone-300');
+      } else if (skillId === 'high_roller') {
+          const count = handRef.current.length;
+          setHand([]);
+          updatePlayer(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + count) }));
+          const dmg = count * 2;
+          setEnemy(prev => {
+              let finalShield = prev.shield; let d = dmg;
+              if (finalShield >= d) { finalShield -= d; d = 0; } else { d -= finalShield; finalShield = 0; }
+              return { ...prev, shield: finalShield, currentHp: Math.max(0, prev.currentHp - d) };
+          });
+          triggerVfx('SLASH', 50, 50, `倾泻 -${dmg}`);
+      } else if (skillId === 'void') {
+          updatePlayer(prev => ({ ...prev, currentHp: Math.ceil(prev.currentHp / 2) }));
+          setEnemy(prev => ({ ...prev, currentHp: Math.ceil(prev.currentHp / 2) }));
+          triggerVfx('POISON', 50, 50, '坍缩');
+      }
+  };
+
   const renderEnemyVisual = () => {
      // Determine visuals based on intents and status
      const intent = enemy.intents[0];
@@ -1824,52 +1994,60 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
             {isFrozen && <LucideSnowflake size={120} className="absolute z-30 text-cyan-100/50 animate-spin-slow" />}
 
             {/* Intent Indicator (The Tethered Omen) */}
-            {enemy.intents[0] && (
-                <div className="absolute -right-12 top-0 z-30 animate-float-delayed flex flex-col items-center">
-                    {/* Tether Line */}
-                    <svg className="absolute top-1/2 right-full w-12 h-12 pointer-events-none opacity-30" viewBox="0 0 100 100">
-                        <path d="M100,50 Q50,80 0,50" fill="none" stroke="currentColor" strokeWidth="1" className="text-stone-500" />
-                    </svg>
-
-                    {/* Intent Rune Container */}
-                    <div className={`
-                        w-16 h-16 rounded-full border-2 bg-dungeon-black/90 flex items-center justify-center shadow-xl backdrop-blur-sm relative group
-                        ${enemy.intents[0].type === 'ATTACK' ? 'border-dungeon-blood shadow-red-900/20' : 
-                          enemy.intents[0].type === 'POLLUTE' ? 'border-fuchsia-800 shadow-fuchsia-900/20' : 
-                          'border-stone-600 shadow-stone-900/20'}
+            {enemy.intents.map((intent, idx) => {
+                if (!intent || (idx > 0 && !(player.passiveSkill?.id === 'oracle' && player.level >= 2))) return null;
+                
+                return (
+                    <div key={idx} className={`absolute top-0 z-30 animate-float-delayed flex flex-col items-center transition-all duration-500
+                        ${idx === 0 ? '-right-12' : '-right-8 top-20 opacity-70 scale-75 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]'}
                     `}>
-                        {/* Icon */}
-                        <div className="relative z-10">
-                            {enemy.intents[0].type === 'ATTACK' ? <LucideSword size={28} className="text-dungeon-red animate-pulse"/> : 
-                             enemy.intents[0].type === 'POLLUTE' ? (
-                                enemy.intents[0].description.includes('精神') ? 
-                                <LucideBrain size={28} className="text-fuchsia-500 animate-pulse"/> : 
-                                <LucideSprout size={28} className="text-teal-500 animate-pulse"/>
-                             ) : 
-                             enemy.intents[0].type === 'HEAL' ? <LucidePlus size={28} className="text-green-600 animate-bounce"/> :
-                             enemy.intents[0].type === 'DEFEND' ? <LucideShield size={28} className="text-stone-400 animate-pulse"/> :
-                             enemy.intents[0].type === 'BUFF' ? <LucideTrendingUp size={28} className="text-orange-600"/> :
-                             enemy.intents[0].type === 'DEBUFF' ? <LucideHeartCrack size={28} className="text-stone-400"/> :
-                             <LucideOrbit size={28} className="text-stone-500 animate-spin-slow"/>}
-                        </div>
-
-                        {/* Value Badge */}
-                        {enemy.intents[0].value > 0 && (
-                            <div className="absolute -bottom-2 bg-black border border-stone-600 text-stone-200 text-xs font-bold font-display px-1.5 py-0.5 shadow-md">
-                                {enemy.intents[0].value}
-                            </div>
-                        )}
+                        {idx === 1 && <div className="absolute -top-6 text-[10px] font-bold text-stone-400 tracking-widest whitespace-nowrap">未来视界</div>}
                         
-                        {/* Tooltip */}
-                        <div className="absolute top-full mt-2 w-max bg-black/90 border border-stone-800 text-stone-400 text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                            <span className="font-bold text-stone-300 uppercase block text-center mb-0.5 tracking-widest">
-                                {INTENT_LABELS[enemy.intents[0].type]}
-                            </span>
-                            {enemy.intents[0].description}
+                        {/* Tether Line */}
+                        <svg className="absolute top-1/2 right-full w-12 h-12 pointer-events-none opacity-30" viewBox="0 0 100 100">
+                            <path d="M100,50 Q50,80 0,50" fill="none" stroke="currentColor" strokeWidth="1" className="text-stone-500" />
+                        </svg>
+
+                        {/* Intent Rune Container */}
+                        <div className={`
+                            w-16 h-16 rounded-full border-2 bg-dungeon-black/90 flex items-center justify-center shadow-xl backdrop-blur-sm relative group
+                            ${intent.type === 'ATTACK' ? 'border-dungeon-blood shadow-red-900/20' : 
+                              intent.type === 'POLLUTE' ? 'border-fuchsia-800 shadow-fuchsia-900/20' : 
+                              'border-stone-600 shadow-stone-900/20'}
+                        `}>
+                            {/* Icon */}
+                            <div className="relative z-10">
+                                {intent.type === 'ATTACK' ? <LucideSword size={28} className="text-dungeon-red animate-pulse"/> : 
+                                 intent.type === 'POLLUTE' ? (
+                                    intent.description.includes('精神') ? 
+                                    <LucideBrain size={28} className="text-fuchsia-500 animate-pulse"/> : 
+                                    <LucideSprout size={28} className="text-teal-500 animate-pulse"/>
+                                 ) : 
+                                 intent.type === 'HEAL' ? <LucidePlus size={28} className="text-green-600 animate-bounce"/> :
+                                 intent.type === 'DEFEND' ? <LucideShield size={28} className="text-stone-400 animate-pulse"/> :
+                                 intent.type === 'BUFF' ? <LucideTrendingUp size={28} className="text-orange-600"/> :
+                                 intent.type === 'DEBUFF' ? <LucideHeartCrack size={28} className="text-stone-400"/> :
+                                 <LucideOrbit size={28} className="text-stone-500 animate-spin-slow"/>}
+                            </div>
+
+                            {/* Value Badge */}
+                            {intent.value > 0 && (
+                                <div className="absolute -bottom-2 bg-black border border-stone-600 text-stone-200 text-xs font-bold font-display px-1.5 py-0.5 shadow-md">
+                                    {intent.value}
+                                </div>
+                            )}
+                            
+                            {/* Tooltip */}
+                            <div className="absolute top-full mt-2 w-max bg-black/90 border border-stone-800 text-stone-400 text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                <span className="font-bold text-stone-300 uppercase block text-center mb-0.5 tracking-widest">
+                                    {INTENT_LABELS[intent.type]}
+                                </span>
+                                {intent.description}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })}
         </div>
      );
   };
@@ -2053,6 +2231,25 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                 </div>
                 
                 <div className="flex items-end gap-2 pointer-events-auto">
+                    {/* Active Skill UI */}
+                    {player.activeSkill && player.level >= 4 && (
+                        <button
+                            onClick={handleActiveSkill}
+                            disabled={player.charge < 10}
+                            className={`relative group px-2 py-1 rounded border shadow-lg flex items-center gap-1.5 transition-all cursor-pointer
+                                ${player.charge >= 10 ? 'bg-dungeon-gold/20 border-dungeon-gold text-dungeon-gold hover:bg-dungeon-gold/40 animate-pulse' : 'bg-black/80 border-stone-800 text-stone-600'}
+                            `}
+                        >
+                            <div className={`w-1.5 h-1.5 rounded-full ${player.charge >= 10 ? 'bg-dungeon-gold' : 'bg-stone-700'}`}></div>
+                            <span className="text-[10px] font-bold tracking-widest">{player.activeSkill.name} ({player.charge}/10)</span>
+                            
+                            <div className="absolute bottom-full right-0 mb-2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
+                                <div className="text-xs font-bold text-dungeon-gold mb-1">{player.activeSkill.name}</div>
+                                <div className="text-[10px] text-stone-400 leading-relaxed whitespace-pre-wrap">{player.activeSkill.desc}</div>
+                            </div>
+                        </button>
+                    )}
+
                     {player.passiveSkill && (
                         <div className={`relative group px-2 py-1.5 rounded border shadow-lg flex items-center gap-1.5 cursor-help backdrop-blur-sm
                             ${player.level >= 2 ? 'bg-stone-800/80 border-stone-500 text-stone-200' : 'bg-black/80 border-stone-800 text-stone-600'}

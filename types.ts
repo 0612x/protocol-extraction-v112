@@ -135,6 +135,8 @@ export interface PlayerStats {
   blueprints: Blueprint[];
   statuses: Record<string, number>;
   // Calculated stats from Inventory
+  charge: number; // 新增：主动技能充能层数 (0~10)
+  runMaxHpBonus?: number; // 新增：用于死灵的局内生命值上限累加
   damageBonus: number;
   runDamageBonus?: number; // 新增：用于存放暴徒等局内积攒的临时伤害
   shieldBonus: number; // New: Adds to Block cards

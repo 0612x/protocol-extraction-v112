@@ -456,7 +456,10 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                     {/* Character Selector */}
                     <div className="flex gap-2 overflow-x-auto pb-2">
                         {metaState.roster.map(char => {
-                            const qColor = char.quality === 'WHITE' ? 'border-stone-500' : char.quality === 'GREEN' ? 'border-green-500' : char.quality === 'BLUE' ? 'border-blue-500' : char.quality === 'GOLD' ? 'border-yellow-500' : 'border-stone-800';
+                            const qColor = char.quality === 'WHITE' ? 'border-stone-500' : char.quality === 'GREEN' ? 'border-green-500' : char.quality === 'BLUE' ? 'border-blue-500' : char.quality === 'PURPLE' ? 'border-purple-500' : char.quality === 'GOLD' ? 'border-yellow-500' : 'border-stone-800';
+                            const iconColor = char.quality === 'GREEN' ? 'text-green-400' : char.quality === 'BLUE' ? 'text-blue-400' : char.quality === 'PURPLE' ? 'text-purple-400' : char.quality === 'GOLD' ? 'text-yellow-400' : 'text-stone-400';
+                            const gradeColor = char.quality === 'PURPLE' ? 'text-purple-400' : char.quality === 'GOLD' ? 'text-yellow-400' : 'text-stone-300';
+                            
                             return (
                                 <button 
                                     key={char.id}
@@ -464,8 +467,8 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                     className={`flex-shrink-0 p-2 border rounded-lg flex flex-col items-center gap-1 min-w-[80px] ${selectedCharId === char.id ? `${qColor} bg-stone-800 shadow-md` : 'border-stone-800 bg-stone-900/50 opacity-60'}`}
                                 >
                                     <div className="relative">
-                                        <LucideUser size={24} className={char.quality === 'GREEN' ? 'text-green-400' : char.quality === 'BLUE' ? 'text-blue-400' : char.quality === 'GOLD' ? 'text-yellow-400' : 'text-stone-400'} />
-                                        {char.grade && <div className="absolute -bottom-1 -right-2 text-[8px] font-bold bg-black px-1 rounded">{char.grade}</div>}
+                                        <LucideUser size={24} className={iconColor} />
+                                        {char.grade && <div className={`absolute -bottom-1 -right-2 text-[8px] font-bold bg-black px-1 rounded border border-stone-800 ${gradeColor}`}>{char.grade}</div>}
                                     </div>
                                     <span className="text-[10px] truncate max-w-[70px]">{char.name}</span>
                                 </button>
@@ -479,9 +482,16 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                             ${selectedChar.quality === 'WHITE' ? 'border-stone-500 shadow-stone-500/20' : 
                               selectedChar.quality === 'GREEN' ? 'border-green-500 shadow-green-500/20' : 
                               selectedChar.quality === 'BLUE' ? 'border-blue-500 shadow-blue-500/20' : 
+                              selectedChar.quality === 'PURPLE' ? 'border-purple-500 shadow-purple-500/20' : 
                               selectedChar.quality === 'GOLD' ? 'border-yellow-500 shadow-yellow-500/20' : 'border-stone-700'}
                         `}>
-                            <LucideUser size={64} className="text-stone-500" />
+                            <LucideUser size={64} className={`
+                                ${selectedChar.quality === 'WHITE' ? 'text-stone-500' : 
+                                  selectedChar.quality === 'GREEN' ? 'text-green-500' : 
+                                  selectedChar.quality === 'BLUE' ? 'text-blue-500' : 
+                                  selectedChar.quality === 'PURPLE' ? 'text-purple-500' : 
+                                  selectedChar.quality === 'GOLD' ? 'text-yellow-500' : 'text-stone-600'}
+                            `} />
                             <div className="absolute -bottom-2 px-3 py-1 bg-stone-800 border border-stone-600 rounded-full text-xs font-bold text-stone-300">
                                 LV.{selectedChar.level}
                             </div>
@@ -491,22 +501,39 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                     {/* Skills Overview */}
                     {selectedChar.class !== 'COMMANDER' && (
                         <div className="w-full bg-stone-900/60 border border-stone-800 p-3 rounded-lg flex flex-col gap-2">
-                            <div className="text-xs font-bold text-stone-500 mb-1">被动技能</div>
+                            <div className="text-xs font-bold text-stone-500 mb-1">战斗回路 (被动/主动)</div>
                             {selectedChar.passiveSkill ? (
-                                <div className="flex items-start gap-3">
-                                    <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center ${selectedChar.level >= 2 ? 'bg-stone-800 border border-stone-500' : 'bg-black border border-stone-800'}`}>
+                                <div className="flex items-start gap-3 mb-2">
+                                    <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center ${selectedChar.level >= 2 ? 'bg-stone-800 border border-stone-500 text-stone-200' : 'bg-black border border-stone-800 text-stone-600'}`}>
                                         <span className="text-xs font-bold">{selectedChar.passiveSkill.name[0]}</span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <div className="text-sm font-bold text-stone-200 flex items-center gap-2">
+                                        <div className="text-sm font-bold flex items-center gap-2 text-stone-200">
+                                            <span className="text-[10px] px-1 bg-stone-700 text-stone-300 rounded">被动</span>
                                             {selectedChar.passiveSkill.name} 
-                                            {selectedChar.level < 2 && <span className="text-[9px] bg-red-900/50 text-red-400 px-1 rounded">Lv.2 解锁</span>}
+                                            {selectedChar.level < 2 && <span className="text-[9px] bg-red-900/50 text-red-400 px-1 rounded border border-red-800">Lv.2 解锁</span>}
                                         </div>
-                                        <div className={`text-xs ${selectedChar.level >= 2 ? 'text-stone-400' : 'text-stone-600'}`}>{selectedChar.passiveSkill.desc}</div>
+                                        <div className={`text-xs mt-0.5 ${selectedChar.level >= 2 ? 'text-stone-400' : 'text-stone-600'}`}>{selectedChar.passiveSkill.desc}</div>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="text-xs text-stone-600 italic">该素体品质过低，无任何技能回路。</div>
+                            )}
+
+                            {selectedChar.activeSkill && (
+                                <div className="flex items-start gap-3 pt-2 border-t border-stone-800/50">
+                                    <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center ${selectedChar.level >= 4 ? 'bg-dungeon-gold/20 border border-dungeon-gold text-dungeon-gold' : 'bg-black border border-stone-800 text-stone-600'}`}>
+                                        <span className="text-xs font-bold">{selectedChar.activeSkill.name[0]}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="text-sm font-bold flex items-center gap-2 text-dungeon-gold">
+                                            <span className="text-[10px] px-1 bg-yellow-900/50 text-yellow-500 rounded border border-yellow-700">主动</span>
+                                            {selectedChar.activeSkill.name} 
+                                            {selectedChar.level < 4 && <span className="text-[9px] bg-red-900/50 text-red-400 px-1 rounded border border-red-800">Lv.4 解锁</span>}
+                                        </div>
+                                        <div className={`text-xs mt-0.5 ${selectedChar.level >= 4 ? 'text-stone-400' : 'text-stone-600'}`}>{selectedChar.activeSkill.desc}</div>
+                                    </div>
+                                </div>
                             )}
                             
                             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-800">
@@ -579,8 +606,10 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                         setTimeout(() => {
                                             const rand = Math.random();
                                             let pool = AGENT_TEMPLATES.filter(a => a.quality === 'WHITE');
-                                            if (rand > 0.6 && rand <= 0.75) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GREEN');
-                                            else if (rand > 0.75) pool = AGENT_TEMPLATES.filter(a => a.quality === 'BLUE');
+                                            if (rand > 0.60 && rand <= 0.75) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GREEN'); // 15%
+                                            else if (rand > 0.75 && rand <= 0.85) pool = AGENT_TEMPLATES.filter(a => a.quality === 'BLUE'); // 10%
+                                            else if (rand > 0.85 && rand <= 0.95) pool = AGENT_TEMPLATES.filter(a => a.quality === 'PURPLE'); // 10%
+                                            else if (rand > 0.95) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GOLD'); // 5%
                                             const template = pool[Math.floor(Math.random() * pool.length)];
 
                                             const newId = `agent-${Date.now()}`;
