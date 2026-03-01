@@ -37,10 +37,24 @@ export interface MetaState {
 // 新增：用于判定网格区域规则的上下文
 export type GridContext = 'AGENT' | 'COMMANDER' | 'WAREHOUSE' | 'LOOT';
 
+export type Quality = 'WHITE' | 'GREEN' | 'BLUE' | 'PURPLE' | 'GOLD';
+export type Grade = 'C' | 'B' | 'A' | 'S' | 'SS';
+
+export interface Skill {
+  id: string;
+  name: string;
+  desc: string;
+  type: 'PASSIVE' | 'ACTIVE';
+}
+
 export interface Character {
   id: string;
   name: string;
   class: 'OPERATOR' | 'GHOST' | 'CONSTRUCT' | 'COMMANDER'; // 增加 COMMANDER (本体)
+  quality?: Quality;
+  grade?: Grade;
+  passiveSkill?: Skill;
+  activeSkill?: Skill;
   level: number;
   exp: number;
   status?: 'ALIVE' | 'DEAD'; // 新增生存状态
@@ -108,6 +122,10 @@ export interface Enemy {
 }
 
 export interface PlayerStats {
+  level: number;
+  passiveSkill?: Skill;
+  activeSkill?: Skill;
+  pendingExp: number;
   maxHp: number;
   currentHp: number;
   shield: number;
@@ -118,6 +136,7 @@ export interface PlayerStats {
   statuses: Record<string, number>;
   // Calculated stats from Inventory
   damageBonus: number;
+  runDamageBonus?: number; // 新增：用于存放暴徒等局内积攒的临时伤害
   shieldBonus: number; // New: Adds to Block cards
   shieldStart: number;
   thorns: number; // New: Retaliate damage

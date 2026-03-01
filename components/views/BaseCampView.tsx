@@ -3,7 +3,7 @@ import React, { useState,useEffect, useCallback } from 'react';
 import { MetaState, ResourceType, BuildingType, Character, InventoryState,CardType} from '../../types';
 import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText } from 'lucide-react';
 import { InventoryView } from './InventoryView';
-import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS } from '../../constants'; // 引入战利品表以生成悬赏
+import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS, AGENT_TEMPLATES, EXP_THRESHOLDS } from '../../constants'; // 引入战利品表以生成悬赏
 import { createEmptyGrid, removeItemFromGrid,canPlaceItem, placeItemInGrid } from '../../utils/gridLogic';
 import { GridItem } from '../../types';
 
@@ -455,27 +455,69 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                 <div className="w-full max-w-md flex flex-col gap-6">
                     {/* Character Selector */}
                     <div className="flex gap-2 overflow-x-auto pb-2">
-                        {metaState.roster.map(char => (
-                            <button 
-                                key={char.id}
-                                onClick={() => setSelectedCharId(char.id)}
-                                className={`flex-shrink-0 p-2 border rounded-lg flex flex-col items-center gap-1 min-w-[80px] ${selectedCharId === char.id ? 'border-stone-400 bg-stone-800' : 'border-stone-800 bg-stone-900/50 opacity-60'}`}
-                            >
-                                <LucideUser size={24} />
-                                <span className="text-[10px]">{char.name}</span>
-                            </button>
-                        ))}
+                        {metaState.roster.map(char => {
+                            const qColor = char.quality === 'WHITE' ? 'border-stone-500' : char.quality === 'GREEN' ? 'border-green-500' : char.quality === 'BLUE' ? 'border-blue-500' : char.quality === 'GOLD' ? 'border-yellow-500' : 'border-stone-800';
+                            return (
+                                <button 
+                                    key={char.id}
+                                    onClick={() => setSelectedCharId(char.id)}
+                                    className={`flex-shrink-0 p-2 border rounded-lg flex flex-col items-center gap-1 min-w-[80px] ${selectedCharId === char.id ? `${qColor} bg-stone-800 shadow-md` : 'border-stone-800 bg-stone-900/50 opacity-60'}`}
+                                >
+                                    <div className="relative">
+                                        <LucideUser size={24} className={char.quality === 'GREEN' ? 'text-green-400' : char.quality === 'BLUE' ? 'text-blue-400' : char.quality === 'GOLD' ? 'text-yellow-400' : 'text-stone-400'} />
+                                        {char.grade && <div className="absolute -bottom-1 -right-2 text-[8px] font-bold bg-black px-1 rounded">{char.grade}</div>}
+                                    </div>
+                                    <span className="text-[10px] truncate max-w-[70px]">{char.name}</span>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {/* Character Visual */}
                     <div className="flex justify-center">
-                        <div className="relative w-32 h-32 flex items-center justify-center border-2 border-stone-700 rounded-full bg-black/50 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                        <div className={`relative w-32 h-32 flex items-center justify-center border-2 rounded-full bg-black/50 shadow-[0_0_20px_rgba(0,0,0,0.5)]
+                            ${selectedChar.quality === 'WHITE' ? 'border-stone-500 shadow-stone-500/20' : 
+                              selectedChar.quality === 'GREEN' ? 'border-green-500 shadow-green-500/20' : 
+                              selectedChar.quality === 'BLUE' ? 'border-blue-500 shadow-blue-500/20' : 
+                              selectedChar.quality === 'GOLD' ? 'border-yellow-500 shadow-yellow-500/20' : 'border-stone-700'}
+                        `}>
                             <LucideUser size={64} className="text-stone-500" />
                             <div className="absolute -bottom-2 px-3 py-1 bg-stone-800 border border-stone-600 rounded-full text-xs font-bold text-stone-300">
                                 LV.{selectedChar.level}
                             </div>
                         </div>
                     </div>
+
+                    {/* Skills Overview */}
+                    {selectedChar.class !== 'COMMANDER' && (
+                        <div className="w-full bg-stone-900/60 border border-stone-800 p-3 rounded-lg flex flex-col gap-2">
+                            <div className="text-xs font-bold text-stone-500 mb-1">被动技能</div>
+                            {selectedChar.passiveSkill ? (
+                                <div className="flex items-start gap-3">
+                                    <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center ${selectedChar.level >= 2 ? 'bg-stone-800 border border-stone-500' : 'bg-black border border-stone-800'}`}>
+                                        <span className="text-xs font-bold">{selectedChar.passiveSkill.name[0]}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="text-sm font-bold text-stone-200 flex items-center gap-2">
+                                            {selectedChar.passiveSkill.name} 
+                                            {selectedChar.level < 2 && <span className="text-[9px] bg-red-900/50 text-red-400 px-1 rounded">Lv.2 解锁</span>}
+                                        </div>
+                                        <div className={`text-xs ${selectedChar.level >= 2 ? 'text-stone-400' : 'text-stone-600'}`}>{selectedChar.passiveSkill.desc}</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-stone-600 italic">该素体品质过低，无任何技能回路。</div>
+                            )}
+                            
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-800">
+                                <span className="text-[10px] text-stone-500 font-mono">EXP</span>
+                                <div className="flex-1 h-1.5 bg-black rounded-full overflow-hidden border border-stone-800">
+                                    <div className="h-full bg-blue-500" style={{ width: `${selectedChar.level < 5 ? (selectedChar.exp - EXP_THRESHOLDS[selectedChar.level-1<0?0:selectedChar.level-1]) / (EXP_THRESHOLDS[selectedChar.level] - EXP_THRESHOLDS[selectedChar.level-1<0?0:selectedChar.level-1]) * 100 : 100}%` }}></div>
+                                </div>
+                                <span className="text-[10px] text-stone-400 font-mono">{selectedChar.level < 5 ? `${selectedChar.exp}/${EXP_THRESHOLDS[selectedChar.level]}` : 'MAX'}</span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 gap-3">
@@ -535,18 +577,24 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                         }));
 
                                         setTimeout(() => {
+                                            const rand = Math.random();
+                                            let pool = AGENT_TEMPLATES.filter(a => a.quality === 'WHITE');
+                                            if (rand > 0.6 && rand <= 0.75) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GREEN');
+                                            else if (rand > 0.75) pool = AGENT_TEMPLATES.filter(a => a.quality === 'BLUE');
+                                            const template = pool[Math.floor(Math.random() * pool.length)];
+
                                             const newId = `agent-${Date.now()}`;
                                             const newAgent: Character = {
+                                                ...template,
                                                 id: newId,
-                                                name: `Alpha-${Math.floor(Math.random() * 90) + 10}`,
-                                                class: 'OPERATOR',
-                                                level: 1,
                                                 exp: 0,
                                                 status: 'ALIVE',
-                                                // 核心修复：完美对齐最新版的微数值框架、状态组 (statuses) 和初始套牌！不再引发白屏报错！
                                                 stats: { 
-                                                    maxHp: 30, 
-                                                    currentHp: 30, 
+                                                    level: template.level || 1,
+                                                    pendingExp: 0,
+                                                    passiveSkill: template.passiveSkill,
+                                                    maxHp: template.stats?.maxHp || 30, 
+                                                    currentHp: template.stats?.maxHp || 30, 
                                                     maxEnergy: 3, 
                                                     energy: 3, 
                                                     shield: 0,
@@ -556,11 +604,11 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                                     thorns: 0,
                                                     deck: [CardType.STRIKE, CardType.BLOCK, CardType.TECH, CardType.MOVE], 
                                                     blueprints: STARTING_BLUEPRINTS,
-                                                    statuses: {} // 关键修复点：提供空的状态对象，防止读取 CORROSION 时崩溃
+                                                    statuses: {}
                                                 },
                                                 inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
-                                            };
-                                            // 暂存招募结果，弹出确认面板等待用户手动收下，不再自动关闭
+                                            } as Character;
+                                            
                                             setRecruitmentResult(newAgent);
                                         }, 3000);
                                     } else {
@@ -723,17 +771,40 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               {recruitmentResult ? (
                   // 【阶段二】动画完毕，展示新角色并要求手动确认
                   <div className="relative flex flex-col items-center justify-center animate-fade-in-up mt-12">
-                      <div className="absolute inset-0 bg-dungeon-gold/10 blur-[80px] rounded-full z-0 w-64 h-64"></div>
-                      <div className="relative w-32 h-32 flex items-center justify-center border-4 border-dungeon-gold rounded-full bg-black/50 shadow-[0_0_50px_rgba(202,138,4,0.5)] z-10">
-                          <LucideUser size={80} className="text-dungeon-gold drop-shadow-[0_0_15px_rgba(202,138,4,1)]" />
+                      <div className={`absolute inset-0 blur-[80px] rounded-full z-0 w-64 h-64 
+                          ${recruitmentResult.quality === 'WHITE' ? 'bg-stone-500/10' : 
+                            recruitmentResult.quality === 'GREEN' ? 'bg-green-500/10' : 
+                            recruitmentResult.quality === 'BLUE' ? 'bg-blue-500/10' : 'bg-dungeon-gold/10'}
+                      `}></div>
+                      <div className={`relative w-32 h-32 flex items-center justify-center border-4 rounded-full bg-black/50 z-10
+                          ${recruitmentResult.quality === 'WHITE' ? 'border-stone-500 shadow-[0_0_50px_rgba(120,113,108,0.5)]' : 
+                            recruitmentResult.quality === 'GREEN' ? 'border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.5)]' : 
+                            recruitmentResult.quality === 'BLUE' ? 'border-blue-500 shadow-[0_0_50px_rgba(59,130,246,0.5)]' : 'border-dungeon-gold shadow-[0_0_50px_rgba(202,138,4,0.5)]'}
+                      `}>
+                          <LucideUser size={80} className={`
+                              ${recruitmentResult.quality === 'WHITE' ? 'text-stone-400 drop-shadow-[0_0_15px_rgba(120,113,108,1)]' : 
+                                recruitmentResult.quality === 'GREEN' ? 'text-green-400 drop-shadow-[0_0_15px_rgba(34,197,94,1)]' : 
+                                recruitmentResult.quality === 'BLUE' ? 'text-blue-400 drop-shadow-[0_0_15px_rgba(59,130,246,1)]' : 'text-dungeon-gold drop-shadow-[0_0_15px_rgba(202,138,4,1)]'}
+                          `} />
                       </div>
-                      <div className="text-4xl font-display font-bold text-stone-100 tracking-widest mt-8 z-10 drop-shadow-md">
+                      <div className="text-4xl font-display font-bold text-stone-100 tracking-widest mt-8 z-10 drop-shadow-md flex items-center gap-3">
                           {recruitmentResult.name}
+                          <span className={`text-xl font-bold px-2 py-0.5 rounded
+                              ${recruitmentResult.quality === 'WHITE' ? 'bg-stone-800 text-stone-400' : 
+                                recruitmentResult.quality === 'GREEN' ? 'bg-green-900 text-green-400' : 
+                                recruitmentResult.quality === 'BLUE' ? 'bg-blue-900 text-blue-400' : 'bg-yellow-900 text-yellow-400'}
+                          `}>{recruitmentResult.grade}</span>
                       </div>
                       <div className="flex gap-4 mt-3 z-10">
                           <span className="px-3 py-1 bg-stone-900 border border-stone-700 text-stone-400 font-mono text-xs rounded uppercase">CLASS: {recruitmentResult.class}</span>
                           <span className="px-3 py-1 bg-amber-950/50 border border-dungeon-gold/50 text-dungeon-gold font-mono text-xs rounded">LV.{recruitmentResult.level}</span>
                       </div>
+                      {recruitmentResult.passiveSkill && (
+                          <div className="mt-4 px-4 py-2 bg-black/60 border border-stone-700 rounded z-10 max-w-sm text-center">
+                              <div className="text-xs font-bold text-dungeon-gold mb-1">初始被动: {recruitmentResult.passiveSkill.name}</div>
+                              <div className="text-[10px] text-stone-400">{recruitmentResult.passiveSkill.desc}</div>
+                          </div>
+                      )}
                       <button 
                           className="mt-12 px-16 py-4 bg-dungeon-gold text-black font-bold text-lg tracking-widest hover:bg-yellow-400 hover:shadow-[0_0_30px_rgba(250,204,21,0.5)] transition-all z-10 rounded shadow-lg"
                           onClick={() => {

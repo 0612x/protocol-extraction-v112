@@ -193,17 +193,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   }, [isPlayerTurn, isProcessing, showMenu, handleTimeOut]);
 
   useEffect(() => {
-    drawCards(HAND_SIZE);
+    let drawAmount = HAND_SIZE;
+    if (player.passiveSkill?.id === 'scout' && player.level >= 2) {
+        drawAmount += 1;
+        addLog('>> 轻盈: 首回合额外抽牌');
+    }
+    drawCards(drawAmount);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (player.currentHp <= 0) {
-      onLose();
-    } else if (enemy.currentHp <= 0) {
-      onWin();
-    }
-  }, [player.currentHp, enemy.currentHp, onWin, onLose]);
 
   // --- AUTOMATIC BUFFER CHECKER ---
   useEffect(() => {
@@ -369,23 +366,24 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   };
 
   const executeBlueprint = (bp: Blueprint) => {
-    addLog(`>> 蓝图激活: ${bp.name}`);
-    triggerShake('sm');
-    setLastCombo(bp.name);
-    
-    // Clear buffer and UNLOCK rapidly
-    setTimeout(() => {
-        setBuffer([]); 
-        setLastCombo(null);
-        setIsProcessing(false); 
-    }, 450);
+      addLog(`>> 蓝图激活: ${bp.name}`);
+      triggerShake('sm');
+      setLastCombo(bp.name);
+      
+      // Clear buffer and UNLOCK rapidly
+      setTimeout(() => {
+          setBuffer([]); 
+          setLastCombo(null);
+          setIsProcessing(false); 
+      }, 450);
 
-    const currentEnemy = enemyRef.current;
-    const currentPlayer = playerRef.current;
-    const dmgBonus = currentPlayer.damageBonus || 0;
-    
-    let damage = bp.damage ? bp.damage + dmgBonus : 0; 
-    let shield = bp.shield || 0;
+      const currentEnemy = enemyRef.current;
+      const currentPlayer = playerRef.current;
+      const isBerserker = currentPlayer.passiveSkill?.id === 'berserker' && currentPlayer.level >= 2 && currentPlayer.currentHp <= currentPlayer.maxHp * 0.5;
+      const dmgBonus = (currentPlayer.damageBonus || 0) + (currentPlayer.runDamageBonus || 0) + (isBerserker ? 1 : 0);
+      
+      let damage = bp.damage ? bp.damage + dmgBonus : 0;
+      let shield = bp.shield || 0;
 
     // --- Special Effect Handlers ---
 
@@ -779,12 +777,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
     
     // Function to execute single card effect
     const executeCardEffect = (c: CardType) => {
-        const dmgBonus = playerRef.current.damageBonus || 0;
+        const isBerserker = playerRef.current.passiveSkill?.id === 'berserker' && playerRef.current.level >= 2 && playerRef.current.currentHp <= playerRef.current.maxHp * 0.5;
+        const dmgBonus = (playerRef.current.damageBonus || 0) + (playerRef.current.runDamageBonus || 0) + (isBerserker ? 1 : 0);
         const shieldBonus = playerRef.current.shieldBonus || 0;
         const currentEnemy = enemyRef.current;
 
         if (c === CardType.STRIKE) {
-          const dmg = 2 + dmgBonus;
+          let dmg = 2 + dmgBonus;
+          // 刺客被动
+          if (playerRef.current.passiveSkill?.id === 'assassin' && playerRef.current.level >= 2 && Math.random() < 0.05) {
+              dmg *= 2;
+              triggerVfx('TEXT', 50, 40, '致命弱点!', 'text-purple-400');
+          }
           const { damage: finalDmg, isShocked } = calculateDamageInfo(dmg, currentEnemy);
           
           triggerVfx('SLASH', 50, 30);
@@ -956,6 +960,15 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
     // Execute effect
     executeCardEffect(card);
+
+    // 毒师被动：50% 概率施加 1 层中毒
+    if (playerRef.current.passiveSkill?.id === 'venom' && playerRef.current.level >= 2 && [CardType.STRIKE, CardType.FIRE, CardType.THUNDER, CardType.ICE, CardType.POISON].includes(card)) {
+        if (Math.random() < 0.5) {
+            setEnemy(prev => ({ ...prev, statuses: { ...prev.statuses, POISON: (prev.statuses['POISON'] || 0) + 1 } }));
+            triggerVfx('TEXT', 50, 50, '剧毒附魔', 'text-lime-400');
+        }
+    }
+
     if (shouldEcho) {
         setTimeout(() => {
             addLog('>> 回响: 双重施法!');
@@ -1022,6 +1035,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
     const removedCard = newHand.splice(index, 1)[0];
     setHand(newHand);
     addLog(`>> 丢弃: ${CARD_DEFINITIONS[removedCard.type].name}`);
+
+    // 拾荒王被动
+    if (playerRef.current.passiveSkill?.id === 'scrapper' && playerRef.current.level >= 2) {
+        updatePlayer(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + 1) }));
+        triggerVfx('HEAL', 20, 80);
+    }
 
     if (newHand.length <= HAND_SIZE) {
         setIsDiscarding(false);
@@ -1423,7 +1442,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           'CORROSION': '腐蚀', 'WEAK': '虚弱', 'BLEED': '流血', 'CORRUPTION': '腐败',
           'DODGE': '闪避', 'FROZEN': '冻结', 'BURN': '燃烧', 'POISON': '中毒',
           'SHOCK': '感电', 'FOCUS': '专注', 'THORNS': '荆棘', 'STRENGTH': '狂暴', 'ENRAGE': '激怒',
-          'ECHO': '回响', 'FLOW': '心流', 'DOMAIN': '领域'
+          'ECHO': '回响', 'FLOW': '心流', 'DOMAIN': '领域', 'BERSERKER': '嗜血'
       };
 
       if ((statuses['CORROSION'] || 0) > 0) buffs.push({ type: 'CORROSION', val: statuses['CORROSION'], icon: LucideBiohazard, color: 'bg-lime-950 border-lime-600 text-lime-400 animate-pulse' });
@@ -1440,6 +1459,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
       else if (player.thorns > 0 && statuses === player.statuses) buffs.push({ type: 'THORNS', val: player.thorns, icon: LucideSprout, color: 'bg-red-900/60 border-red-400 text-red-200' });
       if ((statuses['STRENGTH'] || 0) > 0) buffs.push({ type: 'STRENGTH', val: statuses['STRENGTH'], icon: LucideBicepsFlexed, color: 'bg-red-950 border-red-500 text-red-400' });
       
+      // Berserker Passive UI Indicator
+      if (player.passiveSkill?.id === 'berserker' && player.level >= 2 && player.currentHp <= player.maxHp * 0.5 && statuses === player.statuses) {
+          buffs.push({ type: 'BERSERKER', val: 1, icon: LucideSword, color: 'bg-red-950 border-red-500 text-red-400 animate-pulse' });
+      }
+
       // New Special Statuses
       if ((statuses['ECHO'] || 0) > 0) buffs.push({ type: 'ECHO', val: statuses['ECHO'], icon: LucideOrbit, color: 'bg-cyan-900/80 border-cyan-400 text-cyan-100 animate-spin-slow' });
       if ((statuses['FLOW'] || 0) > 0) buffs.push({ type: 'FLOW', val: statuses['FLOW'], icon: LucideZap, color: 'bg-yellow-900/80 border-yellow-400 text-yellow-100' });
@@ -1463,7 +1487,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           'STRENGTH': '攻击造成额外伤害 (攻击后 -1 层)',
           'ECHO': '下一张基础牌打出两次',
           'FLOW': '下一张牌不占用缓冲区',
-          'DOMAIN': '若回合开始时护甲未归零，触发奖励'
+          'DOMAIN': '若回合开始时护甲未归零，触发奖励',
+          'BERSERKER': '生命值不高于50%，攻击伤害+1'
       };
 
       return (
@@ -2021,9 +2046,28 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                 <div className="h-full bg-gradient-to-r from-red-900 to-red-500 shadow-[0_0_8px_rgba(220,38,38,0.8)]" style={{width: `${(player.currentHp / player.maxHp) * 100}%`}}></div>
             </div>
             
-            {/* Player Statuses - Tooltips point UP (default) */}
-            <div className="absolute bottom-full left-4 mb-3 z-20">
-                {renderBuffs(player.statuses, '', 'up')}
+            {/* Player Statuses and Skills - Both aligned at the top of the console */}
+            <div className="absolute bottom-full left-4 right-4 mb-3 z-20 flex items-end justify-between pointer-events-none">
+                <div className="flex items-end gap-2 pointer-events-auto">
+                    {renderBuffs(player.statuses, '', 'up')}
+                </div>
+                
+                <div className="flex items-end gap-2 pointer-events-auto">
+                    {player.passiveSkill && (
+                        <div className={`relative group px-2 py-1.5 rounded border shadow-lg flex items-center gap-1.5 cursor-help backdrop-blur-sm
+                            ${player.level >= 2 ? 'bg-stone-800/80 border-stone-500 text-stone-200' : 'bg-black/80 border-stone-800 text-stone-600'}
+                        `}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${player.level >= 2 ? 'bg-green-500 animate-pulse' : 'bg-red-900'}`}></div>
+                            <span className="text-[10px] font-bold tracking-widest">{player.passiveSkill.name}</span>
+                            
+                            <div className="absolute bottom-full right-0 mb-2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
+                                <div className="text-xs font-bold text-dungeon-gold mb-1">{player.passiveSkill.name} {player.level >= 2 ? '' : '(未解锁)'}</div>
+                                <div className="text-[10px] text-stone-400 leading-relaxed whitespace-pre-wrap">{player.passiveSkill.desc}</div>
+                                {player.level < 2 && <div className="text-[9px] text-red-500 mt-1 font-bold">⚠️ Lv.2 解锁此被动</div>}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="flex items-end justify-between px-3 gap-3 ">
@@ -2036,12 +2080,15 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                         </div>
                         <span className="text-3xl font-display font-bold text-shadow-blood">{player.currentHp}</span>
                     </div>
-                    {player.shield > 0 && (
-                        <div className="flex items-center gap-2 text-stone-400 animate-slide-in-up">
-                            <LucideShield size={18} />
-                            <span className="text-lg font-display font-bold">{player.shield}</span>
-                        </div>
-                    )}
+                    {/* 使用固定高度占位，确保血量数字不会因为护甲消失而下沉 */}
+                    <div className="h-7 flex items-center">
+                        {player.shield > 0 && (
+                            <div className="flex items-center gap-2 text-stone-400 animate-slide-in-up">
+                                <LucideShield size={18} />
+                                <span className="text-lg font-display font-bold">{player.shield}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Buffer Sequence Display */}
@@ -2213,7 +2260,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                                  onPointerDown={(e) => handleCardPointerDown(e, idx)}
                                  disabled={!isPlayerTurn || (isProcessing && !isDiscarding)} 
                                  isComboFinisher={isComboStarter}
-                                 bonusDamage={player.damageBonus} 
+                                 bonusDamage={(player.damageBonus || 0) + (player.runDamageBonus || 0) + (player.passiveSkill?.id === 'berserker' && player.level >= 2 && player.currentHp <= player.maxHp * 0.5 ? 1 : 0)} 
                                  bonusShield={player.shieldBonus}
                                  isDragging={isDraggingThis}
                                  style={{

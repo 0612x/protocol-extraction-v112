@@ -8,10 +8,11 @@ interface SettlementViewProps {
   lostItems: GridItem[];
   totalValue: number;
   isCommander: boolean;
+  expGained?: number;
   onConfirm: () => void;
 }
 
-export const SettlementView: React.FC<SettlementViewProps> = ({ outcome, extractedItems, lostItems, totalValue, isCommander, onConfirm }) => {
+export const SettlementView: React.FC<SettlementViewProps> = ({ outcome, extractedItems, lostItems, totalValue, isCommander, expGained, onConfirm }) => {
   const [introFinished, setIntroFinished] = useState(false);
 
   // 控制 3 秒的黑屏沉浸式动画
@@ -72,6 +73,13 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ outcome, extract
             <span className="text-stone-400 font-bold">回收物资总估值</span>
             <span className="text-2xl font-mono text-dungeon-gold font-bold">₮ {totalValue}</span>
         </div>
+        
+        {expGained !== undefined && !isCommander && (
+            <div className="flex justify-between items-center border-b border-stone-700 pb-4">
+                <span className="text-stone-400 font-bold flex items-center gap-2"><LucideCheckCircle size={16} className="text-blue-400"/> 素体实战经验</span>
+                <span className="text-xl font-mono text-blue-400 font-bold">+ {expGained} EXP</span>
+            </div>
+        )}
 
         <div>
             <h3 className="text-sm font-bold text-stone-300 flex items-center gap-2 mb-3">

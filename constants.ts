@@ -526,3 +526,24 @@ export const WAREHOUSE_HEIGHT = 40; // 8页 * 5行 = 总计 40行满级仓库
 export const SAFE_ZONE_WIDTH = 3; // Reduced to 3
 export const EQUIPMENT_ROW_COUNT = 2; // Reduced to 2 rows to give more space for backpack
 export const STAGES_PER_DEPTH = 5;
+
+export const EXP_THRESHOLDS = [0, 200, 600, 1400, 3000];
+
+export const AGENT_TEMPLATES: Partial<Character>[] = [
+  { name: 'D-014 (拾荒者)', class: 'OPERATOR', quality: 'WHITE', grade: 'C', level: 1, stats: { maxHp: 30 } as any },
+  { name: 'D-089 (苦工)', class: 'OPERATOR', quality: 'WHITE', grade: 'C', level: 1, stats: { maxHp: 30 } as any },
+  { name: 'D-112 (耗材)', class: 'OPERATOR', quality: 'WHITE', grade: 'C', level: 1, stats: { maxHp: 30 } as any },
+  { name: 'D-255 (测试体)', class: 'OPERATOR', quality: 'WHITE', grade: 'C', level: 1, stats: { maxHp: 30 } as any },
+  { name: 'D-404 (盲流)', class: 'OPERATOR', quality: 'WHITE', grade: 'C', level: 1, stats: { maxHp: 30 } as any },
+
+ { name: 'Alpha-重装', class: 'OPERATOR', quality: 'GREEN', grade: 'B', level: 1, stats: { maxHp: 35 } as any, passiveSkill: { id: 'bulwark', name: '坚毅', desc: '每场战斗开始时，自动获得相当于最大生命值 10% 的护甲。', type: 'PASSIVE' } },
+  { name: 'Alpha-医护', class: 'OPERATOR', quality: 'GREEN', grade: 'B', level: 1, stats: { maxHp: 35 } as any, passiveSkill: { id: 'medic', name: '自愈细胞', desc: '战斗胜利后，恢复 10% 最大生命值。', type: 'PASSIVE' } },
+  { name: 'Alpha-狂暴', class: 'OPERATOR', quality: 'GREEN', grade: 'B', level: 1, stats: { maxHp: 35 } as any, passiveSkill: { id: 'berserker', name: '嗜血', desc: '生命值低于 50% 时，所有攻击伤害 +1。', type: 'PASSIVE' } },
+  { name: 'Alpha-斥候', class: 'OPERATOR', quality: 'GREEN', grade: 'B', level: 1, stats: { maxHp: 35 } as any, passiveSkill: { id: 'scout', name: '轻盈', desc: '每场战斗首回合，额外抽 1 张牌。', type: 'PASSIVE' } },
+  { name: 'Alpha-工兵', class: 'OPERATOR', quality: 'GREEN', grade: 'B', level: 1, stats: { maxHp: 35 } as any, passiveSkill: { id: 'sapper', name: '带刺装甲', desc: '始终拥有 1 点反伤（Thorns）。', type: 'PASSIVE' } },
+
+  { name: 'Beta-刺客', class: 'GHOST', quality: 'BLUE', grade: 'A', level: 1, stats: { maxHp: 40 } as any, passiveSkill: { id: 'assassin', name: '致命弱点', desc: '造成伤害时，有 5% 概率造成双倍伤害。', type: 'PASSIVE' } },
+  { name: 'Beta-暴徒', class: 'GHOST', quality: 'BLUE', grade: 'A', level: 1, stats: { maxHp: 40 } as any, passiveSkill: { id: 'thug', name: '越战越勇', desc: '每击杀一名敌人，本局游戏永久增加 1 点基础伤害。', type: 'PASSIVE' } },
+ { name: 'Beta-毒师', class: 'GHOST', quality: 'BLUE', grade: 'A', level: 1, stats: { maxHp: 40 } as any, passiveSkill: { id: 'venom', name: '剧毒附魔', desc: '你打出的每张攻击牌有 50% 概率对敌人施加 1 层中毒。', type: 'PASSIVE' } },
+  { name: 'Beta-拾荒王', class: 'GHOST', quality: 'BLUE', grade: 'A', level: 1, stats: { maxHp: 40 } as any, passiveSkill: { id: 'scrapper', name: '废物利用', desc: '丢弃手牌时，每丢弃 1 张恢复 1 点生命。', type: 'PASSIVE' } }
+];

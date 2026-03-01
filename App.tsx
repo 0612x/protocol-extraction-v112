@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { GamePhase, PlayerStats, Enemy, InventoryState, CardType, Blueprint, GridItem, MetaState, ResourceType, BuildingType, Character } from './types';
-import { INVENTORY_WIDTH, INVENTORY_HEIGHT, WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT, STARTING_BLUEPRINTS, BLUEPRINT_POOL, SAFE_ZONE_WIDTH, STAGES_PER_DEPTH, EQUIPMENT_ROW_COUNT } from './constants';
+import { INVENTORY_WIDTH, INVENTORY_HEIGHT, WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT, STARTING_BLUEPRINTS, BLUEPRINT_POOL, SAFE_ZONE_WIDTH, STAGES_PER_DEPTH, EQUIPMENT_ROW_COUNT, AGENT_TEMPLATES, EXP_THRESHOLDS } from './constants';
 import { createEmptyGrid, removeItemFromGrid, placeItemInGrid } from './utils/gridLogic';
 import { CombatView } from './components/views/CombatView';
 import { InventoryView } from './components/views/InventoryView';
@@ -15,6 +15,8 @@ import { getPlayerZone } from './utils/gridLogic'; // 引入区域计算
 import { LucideX, LucideSkull } from 'lucide-react';
 
 const INITIAL_PLAYER: PlayerStats = {
+  level: 0,
+  pendingExp: 0,
   maxHp: 30, // Micro-Number Health Pool
   currentHp: 30,
   shield: 0,
@@ -65,11 +67,32 @@ const INITIAL_META_STATE: MetaState = {
       id: 'commander-001',
       name: '本体 (指挥官)',
       class: 'COMMANDER',
+      quality: 'GOLD',
+      grade: 'SS',
       level: 0,
       exp: 0,
       stats: INITIAL_PLAYER,
       inventory: INITIAL_INVENTORY
     },
+    ...AGENT_TEMPLATES.filter(a => a.quality === 'GREEN' || a.quality === 'BLUE').map((tmpl, idx) => ({
+      ...tmpl,
+      id: `test-agent-${idx}`,
+      exp: 0,
+      status: 'ALIVE' as const,
+      stats: {
+          ...INITIAL_PLAYER,
+          level: tmpl.level || 1,
+          passiveSkill: tmpl.passiveSkill,
+          maxHp: tmpl.stats?.maxHp || 30,
+          currentHp: tmpl.stats?.maxHp || 30
+      },
+      inventory: {
+          grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT),
+          items: [],
+          width: INVENTORY_WIDTH,
+          height: INVENTORY_HEIGHT
+      }
+    } as Character))
   ]
 };
 
@@ -120,21 +143,26 @@ export default function App() {
     });
 
     setPlayer(prev => {
-        const newMaxHp = Math.max(1, INITIAL_PLAYER.maxHp + hpBonus); // Ensure min 1 HP
-        // Clamp current HP if max HP drops (e.g. unequipped an HP item)
-        const newCurrentHp = Math.min(prev.currentHp, newMaxHp);
-        
-        return {
-            ...prev,
-            maxHp: newMaxHp,
-            currentHp: newCurrentHp,
-            damageBonus: dmgBonus,
-            shieldBonus: shldBonus,
-            shieldStart: shldStart,
-            thorns: thornsVal
-        };
-    });
-  }, [inventory.items]);
+            const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+            const baseMaxHp = activeChar?.stats.maxHp || INITIAL_PLAYER.maxHp;
+            const newMaxHp = Math.max(1, baseMaxHp + hpBonus); 
+            const newCurrentHp = Math.min(prev.currentHp, newMaxHp);
+            
+            // 计算基于当前血量上限的护甲被动
+            const isSapper = prev.passiveSkill?.id === 'sapper' && prev.level >= 2;
+            const passiveThorns = isSapper ? 1 : 0;
+
+            return {
+                ...prev,
+                maxHp: newMaxHp,
+                currentHp: newCurrentHp,
+                damageBonus: dmgBonus,
+                shieldBonus: shldBonus,
+                shieldStart: shldStart, // 修复：此处仅记录装备提供的初始护甲，重装的被动在开战时独立附加
+                thorns: thornsVal + passiveThorns
+            };
+        });
+      }, [inventory.items, activeCharId, metaState.roster]);
 
   const generateEnemy = (level: number, currentStage: number): Enemy => {
     // Difficulty Curve Logic - MICRO NUMBERS
@@ -255,9 +283,24 @@ export default function App() {
                         const itemForPlacement = { ...i, rotation: 0 as const };
                         newGrid = placeItemInGrid(newGrid, itemForPlacement, i.x, i.y);
                     });
+                    
+                    let newExp = c.exp + player.pendingExp;
+                    let newLevel = c.level;
+                    let newMaxHp = c.stats.maxHp;
+                    // 只有存活才能获得经验并升级
+                    if (isCommander || c.status === 'ALIVE') {
+                        while (newLevel < 5 && newExp >= EXP_THRESHOLDS[newLevel]) {
+                            newLevel++;
+                            newMaxHp += 5;
+                        }
+                    }
+
                     return {
                         ...c,
+                        level: isCommander ? 0 : newLevel,
+                        exp: isCommander ? 0 : newExp,
                         status: isCommander ? 'ALIVE' : 'DEAD', 
+                        stats: { ...c.stats, level: newLevel, maxHp: newMaxHp, currentHp: isCommander || c.status === 'ALIVE' ? newMaxHp : 0 },
                         inventory: { ...c.inventory, items: safeItems, grid: newGrid }
                     };
                 }
@@ -266,7 +309,7 @@ export default function App() {
             return { ...prev, roster: newRoster };
         });
 
-        setRunResult({ outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander });
+        setRunResult({ outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander, expGained: player.pendingExp });
         setPhase('SETTLEMENT');
         setAppTransition('NONE'); // 状态重置，切入 SettlementView
     }, 2500);
@@ -280,7 +323,7 @@ export default function App() {
         const totalValue = allItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
         const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
 
-        setMetaState(prev => {
+       setMetaState(prev => {
             const newRoster = prev.roster.map(c => {
                 if (c.id === activeCharId) {
                     let newGrid = createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT);
@@ -288,14 +331,31 @@ export default function App() {
                         const itemForPlacement = { ...item, rotation: 0 as const };
                         newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
                     });
-                    return { ...c, inventory: { ...c.inventory, items: allItems, grid: newGrid } };
+
+                    let newExp = c.exp + player.pendingExp;
+                    let newLevel = c.level;
+                    let newMaxHp = c.stats.maxHp;
+                    if (c.class !== 'COMMANDER') {
+                        while (newLevel < 5 && newExp >= EXP_THRESHOLDS[newLevel]) {
+                            newLevel++;
+                            newMaxHp += 5;
+                        }
+                    }
+
+                    return { 
+                        ...c, 
+                        level: c.class === 'COMMANDER' ? 0 : newLevel,
+                        exp: c.class === 'COMMANDER' ? 0 : newExp,
+                        stats: { ...c.stats, level: newLevel, maxHp: newMaxHp },
+                        inventory: { ...c.inventory, items: allItems, grid: newGrid } 
+                    };
                 }
                 return c;
             });
             return { ...prev, roster: newRoster };
         });
         
-        setRunResult({ outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander: activeChar.class === 'COMMANDER' });
+        setRunResult({ outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander: activeChar.class === 'COMMANDER', expGained: player.pendingExp });
         setPhase('SETTLEMENT');
         setAppTransition('NONE');
     }, 2500);
@@ -306,7 +366,13 @@ export default function App() {
     if (char.status === 'DEAD') return; // 防御性拦截
     
     setActiveCharId(char.id); // 锁定出战者
-    setPlayer(char.stats);
+    
+    // 初始化被动和经验
+    setPlayer({
+        ...char.stats,
+        pendingExp: 0,
+        runDamageBonus: 0 // 重置局内临时伤害（暴徒被动）
+    });
     setInventory(char.inventory);
 
     setDepth(1);
@@ -317,16 +383,39 @@ export default function App() {
   const startCombat = (level: number, currentStage: number) => {
     setEnemy(generateEnemy(level, currentStage));
     // Apply start-of-combat stats (Shield)
-    // IMPORTANT: This applies the *Passive* shield from items. 
-    // The previous combat's accumulated shield was cleared in handleLootDone.
-    setPlayer(prev => ({
-        ...prev,
-        shield: prev.shieldStart 
-    }));
+    setPlayer(prev => {
+        // 修复重装被动：开战时动态计算 10% 最大生命值的护甲并叠加
+        const isBulwark = prev.passiveSkill?.id === 'bulwark' && prev.level >= 2;
+        const passiveShield = isBulwark ? Math.floor(prev.maxHp * 0.1) : 0;
+        
+        return {
+            ...prev,
+            shield: prev.shieldStart + passiveShield 
+        };
+    });
     setPhase('COMBAT');
   };
 
   const handleWinCombat = () => {
+    // 经验结算与被动触发
+    const expGain = stage === 5 ? 100 : stage >= 4 ? 30 : 15;
+    setPlayer(prev => {
+        let newHp = prev.currentHp;
+        if (prev.passiveSkill?.id === 'medic' && prev.level >= 2) {
+            newHp = Math.min(prev.maxHp, newHp + Math.floor(prev.maxHp * 0.10));
+        }
+        let runDmgBonus = prev.runDamageBonus || 0;
+        if (prev.passiveSkill?.id === 'thug' && prev.level >= 2) {
+            runDmgBonus += 1; // 使用单独的局内伤害字段，防止捡装备时被覆盖重置
+        }
+        return {
+            ...prev,
+            currentHp: newHp,
+            runDamageBonus: runDmgBonus,
+            pendingExp: prev.pendingExp + expGain
+        };
+    });
+
     // DROP RATE LOGIC:
     // Stage 4 (Elite) or Stage 5 (Boss) = Guaranteed Draft (100%)
     // Others = 25% Chance
