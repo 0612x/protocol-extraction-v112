@@ -1,7 +1,7 @@
 
 import React, { useState,useEffect, useCallback } from 'react';
 import { MetaState, ResourceType, BuildingType, Character, InventoryState,CardType} from '../../types';
-import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText } from 'lucide-react';
+import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText, LucideSkull } from 'lucide-react';
 import { InventoryView } from './InventoryView';
 import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS, AGENT_TEMPLATES, EXP_THRESHOLDS } from '../../constants'; // 引入战利品表以生成悬赏
 import { createEmptyGrid, removeItemFromGrid,canPlaceItem, placeItemInGrid } from '../../utils/gridLogic';
