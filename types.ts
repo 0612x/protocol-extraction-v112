@@ -32,6 +32,7 @@ export interface MetaState {
   runHistory: RunRecord[];
   warehouse: InventoryState;    // Persistent storage grid
   roster: Character[];          // Recruited characters
+  advancedRecruitPity?: number; // 新增：高级招募保底计数
 }
 
 // 新增：用于判定网格区域规则的上下文

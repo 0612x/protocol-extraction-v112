@@ -40,7 +40,7 @@ const INITIAL_INVENTORY: InventoryState = {
 
 const INITIAL_META_STATE: MetaState = {
   resources: {
-    [ResourceType.GOLD]: 100,
+    [ResourceType.GOLD]: 1000000,
     [ResourceType.SOULS]: 0,
     [ResourceType.TECH_SCRAP]: 5,
     [ResourceType.INSIGHT]: 0
@@ -62,6 +62,7 @@ const INITIAL_META_STATE: MetaState = {
     height: WAREHOUSE_HEIGHT,
     unlockedRows: 14 // 初始全开，方便测试
   },
+  advancedRecruitPity: 0,
   roster: [
     {
       id: 'commander-001',
@@ -73,30 +74,7 @@ const INITIAL_META_STATE: MetaState = {
       exp: 0,
       stats: { ...INITIAL_PLAYER, charge: 0 },
       inventory: INITIAL_INVENTORY
-    },
-    // 初始化所有拥有技能的素体（绿/蓝/紫/金）
-    ...AGENT_TEMPLATES.filter(a => a.quality !== 'WHITE').map((tmpl, idx) => ({
-      ...tmpl,
-      id: `test-agent-${idx}`,
-      level: 4,
-      exp:1400,
-      status: 'ALIVE' as const,
-      stats: {
-          ...INITIAL_PLAYER,
-          level: 4,
-          charge: 0, // 初始充能槽归零
-          passiveSkill: tmpl.passiveSkill,
-          activeSkill: (tmpl as any).activeSkill,
-          maxHp: tmpl.stats?.maxHp || 30,
-          currentHp: tmpl.stats?.maxHp || 30
-      },
-      inventory: {
-          grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT),
-          items: [],
-          width: INVENTORY_WIDTH,
-          height: INVENTORY_HEIGHT
-      }
-    } as Character))
+    }
   ]
 };
 

@@ -15,7 +15,7 @@ interface BaseCampViewProps {
 }
 
 type Tab = 'WAREHOUSE' | 'BODY' | 'START' | 'MISSION' | 'TRADE';
-type BodySubTab = 'STATUS' | 'SKILLS' | 'RECRUIT';
+type BodySubTab = 'STATUS' | 'RECRUIT';
 
 export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaState, onStartRun, onUpgradeBuilding }) => {
   const [activeTab, setActiveTab] = useState<Tab>('START');
@@ -126,23 +126,13 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
         </div>
 
         {selectedChar.status === 'DEAD' ? (
-            <div 
-                className="w-full max-w-sm p-8 bg-red-950/20 border border-red-900/60 rounded-xl hover:bg-red-900/40 hover:border-red-600 transition-all cursor-pointer group shadow-[0_0_30px_rgba(153,27,27,0.2)]" 
-                onClick={() => {
-                    if(window.confirm(`【警告】确定要清理 ${selectedChar.name} 的残骸吗？\n一旦清理，其保险区内所有未被转移到仓库的遗物将永久蒸发！`)) {
-                        setMetaState(prev => ({ ...prev, roster: prev.roster.filter(c => c.id !== selectedCharId) }));
-                        setSelectedCharId(metaState.roster[0].id); 
-                    }
-                }}
-            >
-                <div className="flex flex-col items-center gap-4">
-                    <div className="p-4 bg-red-900/30 rounded-full text-red-500 group-hover:bg-red-600 group-hover:text-white transition-colors duration-500 shadow-inner">
-                        <span className="text-4xl">☠️</span>
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-xl font-bold text-red-500 group-hover:text-red-400">清理残骸</h3>
-                        <p className="text-xs text-red-800 mt-1 font-bold">不可逆操作: {selectedChar.name} 将被永久删除</p>
-                    </div>
+            <div className="w-full max-w-sm p-8 bg-stone-900/40 border border-stone-800 rounded-xl flex flex-col items-center gap-4 shadow-md">
+                <div className="p-4 bg-red-950/50 rounded-full text-stone-600 shadow-inner">
+                    <LucideSkull size={48} className="opacity-50" />
+                </div>
+                <div className="text-center">
+                    <h3 className="text-xl font-bold text-stone-500">当前素体已失去生命体征</h3>
+                    <p className="text-xs text-stone-600 mt-1">请前往 [素体] 面板清理残骸或切换素体</p>
                 </div>
             </div>
         ) : (
@@ -446,7 +436,6 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
         {/* Sub-Nav */}
         <div className="flex justify-center gap-4 p-2 border-b border-stone-800 bg-black/40">
             <button onClick={() => setBodySubTab('STATUS')} className={`px-4 py-1 text-xs font-bold rounded-full transition-colors ${bodySubTab === 'STATUS' ? 'bg-stone-700 text-white' : 'text-stone-500 hover:text-stone-300'}`}>状态</button>
-            <button onClick={() => setBodySubTab('SKILLS')} className={`px-4 py-1 text-xs font-bold rounded-full transition-colors ${bodySubTab === 'SKILLS' ? 'bg-stone-700 text-white' : 'text-stone-500 hover:text-stone-300'}`}>技能</button>
             <button onClick={() => setBodySubTab('RECRUIT')} className={`px-4 py-1 text-xs font-bold rounded-full transition-colors ${bodySubTab === 'RECRUIT' ? 'bg-stone-700 text-white' : 'text-stone-500 hover:text-stone-300'}`}>招募</button>
         </div>
 
@@ -498,11 +487,31 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                         </div>
                     </div>
 
-                    {/* Skills Overview */}
-                    {selectedChar.class !== 'COMMANDER' && (
-                        <div className="w-full bg-stone-900/60 border border-stone-800 p-3 rounded-lg flex flex-col gap-2">
-                            <div className="text-xs font-bold text-stone-500 mb-1">战斗回路 (被动/主动)</div>
-                            {selectedChar.passiveSkill ? (
+                    {/* Skills Overview & Death State */}
+                    {selectedChar.status === 'DEAD' ? (
+                        <div className="w-full bg-red-950/20 border border-red-900/60 p-5 rounded-lg flex flex-col items-center gap-3 shadow-[0_0_30px_rgba(153,27,27,0.1)]">
+                            <LucideSkull size={32} className="text-red-500 drop-shadow-[0_0_5px_rgba(220,38,38,0.8)]" />
+                            <div className="text-center">
+                                <div className="text-sm font-bold text-red-500 tracking-widest">此素体已无生命体征</div>
+                                <div className="text-[10px] text-red-400/80 mt-1 leading-relaxed">必须清理残骸以释放编制空间。<br/>一旦执行，其保险区内所有遗物将永久丢失。</div>
+                            </div>
+                            <button 
+                                className="mt-2 px-8 py-2.5 bg-red-900/80 hover:bg-red-600 text-white text-xs font-bold tracking-widest rounded transition-all shadow-lg border border-red-500/50"
+                                onClick={() => {
+                                    if(window.confirm(`【警告】不可逆操作！\n确定要销毁 ${selectedChar.name} 的残骸及其保险区物资吗？`)) {
+                                        setMetaState(prev => ({ ...prev, roster: prev.roster.filter(c => c.id !== selectedCharId) }));
+                                        setSelectedCharId(metaState.roster[0].id); 
+                                    }
+                                }}
+                            >
+                                销毁残骸
+                            </button>
+                        </div>
+                    ) : (
+                        selectedChar.class !== 'COMMANDER' && (
+                            <div className="w-full bg-stone-900/60 border border-stone-800 p-3 rounded-lg flex flex-col gap-2">
+                                <div className="text-xs font-bold text-stone-500 mb-1">战斗回路 (被动/主动)</div>
+                                {selectedChar.passiveSkill ? (
                                 <div className="flex items-start gap-3 mb-2">
                                     <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center ${selectedChar.level >= 2 ? 'bg-stone-800 border border-stone-500 text-stone-200' : 'bg-black border border-stone-800 text-stone-600'}`}>
                                         <span className="text-xs font-bold">{selectedChar.passiveSkill.name[0]}</span>
@@ -544,6 +553,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                 <span className="text-[10px] text-stone-400 font-mono">{selectedChar.level < 5 ? `${selectedChar.exp}/${EXP_THRESHOLDS[selectedChar.level]}` : 'MAX'}</span>
                             </div>
                         </div>
+                        )
                     )}
 
                     {/* Stats Grid */}
@@ -566,10 +576,6 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                         </div>
                     </div>
                 </div>
-            )}
-            
-            {bodySubTab === 'SKILLS' && (
-                <div className="text-center text-stone-500 italic mt-10">技能树系统开发中...</div>
             )}
 
             {bodySubTab === 'RECRUIT' && (
@@ -606,10 +612,10 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                         setTimeout(() => {
                                             const rand = Math.random();
                                             let pool = AGENT_TEMPLATES.filter(a => a.quality === 'WHITE');
-                                            if (rand > 0.60 && rand <= 0.75) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GREEN'); // 15%
-                                            else if (rand > 0.75 && rand <= 0.85) pool = AGENT_TEMPLATES.filter(a => a.quality === 'BLUE'); // 10%
-                                            else if (rand > 0.85 && rand <= 0.95) pool = AGENT_TEMPLATES.filter(a => a.quality === 'PURPLE'); // 10%
-                                            else if (rand > 0.95) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GOLD'); // 5%
+                                            if (rand > 0.65 && rand <= 0.80) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GREEN'); // 15%
+                                            else if (rand > 0.80 && rand <= 0.90) pool = AGENT_TEMPLATES.filter(a => a.quality === 'BLUE'); // 10%
+                                            else if (rand > 0.90 && rand <= 0.97) pool = AGENT_TEMPLATES.filter(a => a.quality === 'PURPLE'); // 7%
+                                            else if (rand > 0.97) pool = AGENT_TEMPLATES.filter(a => a.quality === 'GOLD'); // 3%
                                             const template = pool[Math.floor(Math.random() * pool.length)];
 
                                             const newId = `agent-${Date.now()}`;
@@ -650,14 +656,105 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                         </div>
                         
                         {/* 高阶素体 */}
-                        <div className="p-6 border border-stone-800 bg-black/40 rounded-xl flex flex-col items-center gap-4 shadow-lg opacity-60">
-                            <LucideZap size={48} className="text-stone-600" />
-                            <div className="text-center">
-                                <div className="font-bold text-stone-500 text-lg">高阶素体 (GHOST)</div>
-                                <div className="text-xs text-stone-600 mt-2">特化型战斗核心。需要更高级的科技解锁。</div>
+                        <div className="p-6 border border-purple-900/50 hover:border-purple-500 transition-all bg-stone-900/60 rounded-xl flex flex-col items-center gap-4 shadow-lg group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                            <LucideZap size={48} className="text-purple-500 group-hover:text-purple-400 transition-colors drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
+                            <div className="text-center z-10 w-full">
+                                <div className="font-bold text-stone-200 text-lg">高阶素体 (GHOST)</div>
+                                <div className="text-xs text-stone-500 mt-2">高纯度战斗核心。大概率出现特化或精英个体。</div>
+                                
+                                <div className="mt-3 bg-black/50 border border-stone-800 rounded p-2 flex flex-col items-center">
+                                    <div className="text-[10px] text-stone-400">特种招募进度</div>
+                                    <div className="flex gap-1 mt-1">
+                                        {Array.from({length: 10}).map((_, i) => (
+                                            <div key={i} className={`w-3 h-1.5 rounded-sm ${i < (metaState.advancedRecruitPity || 0) ? 'bg-purple-500 shadow-[0_0_5px_rgba(168,85,247,0.8)]' : 'bg-stone-800'}`}></div>
+                                        ))}
+                                    </div>
+                                    <div className={`text-[10px] mt-1 font-bold ${((metaState.advancedRecruitPity || 0) >= 9) ? 'text-purple-400 animate-pulse' : 'text-stone-500'}`}>
+                                        {((metaState.advancedRecruitPity || 0) >= 9) ? '下次招募必出【紫色或以上】' : '累计 10 次必出【紫色或以上】'}
+                                    </div>
+                                </div>
                             </div>
-                            <button className="mt-4 w-full py-3 bg-stone-900 border border-stone-800 text-stone-700 font-bold rounded cursor-not-allowed">
-                                科技未解锁
+                            <button 
+                                className="mt-2 w-full py-3 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-900/80 hover:border-purple-400 text-purple-300 hover:text-purple-100 font-bold rounded flex justify-center items-center gap-2 transition-all z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={isRecruiting}
+                                onClick={() => {
+                                    const cost = 100000;
+                                    if ((metaState.resources[ResourceType.GOLD] || 0) >= cost) {
+                                        setIsRecruiting(true);
+                                        setMetaState(prev => ({
+                                            ...prev,
+                                            resources: { ...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) - cost }
+                                        }));
+
+                                        setTimeout(() => {
+                                            setMetaState(latestState => {
+                                                const pity = latestState.advancedRecruitPity || 0;
+                                                const rand = Math.random();
+                                                let finalQuality: Quality = 'WHITE';
+
+                                                if (pity >= 9) {
+                                                    // 触发保底：只在紫/金里roll (金色概率顺延提升一点)
+                                                    finalQuality = (Math.random() < 0.2) ? 'GOLD' : 'PURPLE';
+                                                } else {
+                                                    // 高级抽：白色 50%, 绿色 20%, 蓝色 15%, 紫色 12%, 金色 3%
+                                                    if (rand <= 0.50) finalQuality = 'WHITE';
+                                                    else if (rand <= 0.70) finalQuality = 'GREEN';
+                                                    else if (rand <= 0.85) finalQuality = 'BLUE';
+                                                    else if (rand <= 0.97) finalQuality = 'PURPLE';
+                                                    else finalQuality = 'GOLD';
+                                                }
+
+                                                let nextPity = pity + 1;
+                                                if (finalQuality === 'PURPLE' || finalQuality === 'GOLD') {
+                                                    nextPity = 0; // 重置进度
+                                                }
+
+                                                let pool = AGENT_TEMPLATES.filter(a => a.quality === finalQuality);
+                                                const template = pool[Math.floor(Math.random() * pool.length)];
+
+                                                const newId = `agent-elite-${Date.now()}`;
+                                                const newAgent: Character = {
+                                                    ...template,
+                                                    id: newId,
+                                                    exp: 0,
+                                                    status: 'ALIVE',
+                                                    stats: { 
+                                                        level: template.level || 1,
+                                                        pendingExp: 0,
+                                                        passiveSkill: template.passiveSkill,
+                                                        activeSkill: (template as any).activeSkill,
+                                                        maxHp: template.stats?.maxHp || 30, 
+                                                        currentHp: template.stats?.maxHp || 30, 
+                                                        maxEnergy: 3, 
+                                                        energy: 3, 
+                                                        shield: 0,
+                                                        damageBonus: 0,
+                                                        shieldBonus: 0,
+                                                        shieldStart: 0,
+                                                        thorns: 0,
+                                                        deck: [CardType.STRIKE, CardType.BLOCK, CardType.TECH, CardType.MOVE], 
+                                                        blueprints: STARTING_BLUEPRINTS,
+                                                        statuses: {},
+                                                        charge: 0
+                                                    },
+                                                    inventory: { items: [], grid: createEmptyGrid(INVENTORY_WIDTH, INVENTORY_HEIGHT), width: INVENTORY_WIDTH, height: INVENTORY_HEIGHT }
+                                                } as Character;
+                                                
+                                                setRecruitmentResult(newAgent);
+
+                                                return {
+                                                    ...latestState,
+                                                    advancedRecruitPity: nextPity
+                                                };
+                                            });
+                                        }, 3000);
+                                    } else {
+                                        showToast("资金不足！特种招募需要 100,000 资金。");
+                                    }
+                                }}
+                            >
+                                <LucideCoins size={16} className="text-dungeon-gold" /> {isRecruiting ? '高阶培养中...' : '100,000 招募'}
                             </button>
                         </div>
                     </div>

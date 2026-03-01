@@ -2317,6 +2317,30 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
                 {/* End Turn Button */}
                 <div className="flex flex-col items-end gap-1 w-auto shrink-0 z-50">
+                    {/* ACTIVE SKILL UI - 贴合执行按钮上方 */}
+                    {player.activeSkill && player.level >= 4 && (
+                        <button
+                            onClick={handleActiveSkill}
+                            disabled={player.charge < 10}
+                            className={`relative group px-2 py-1.5 w-full rounded-sm border shadow-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer mb-0.5
+                                ${player.charge >= 10 ? 'bg-dungeon-gold/20 border-dungeon-gold text-dungeon-gold hover:bg-dungeon-gold/40 animate-pulse' : 'bg-stone-900/90 border-stone-800 text-stone-600'}
+                            `}
+                        >
+                            <span className="text-[9px] font-bold tracking-widest flex items-center gap-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${player.charge >= 10 ? 'bg-dungeon-gold' : 'bg-stone-700'}`}></div>
+                                {player.activeSkill.name}
+                            </span>
+                            <div className="w-full bg-black h-1 rounded-full overflow-hidden border border-stone-800">
+                                <div className={`h-full transition-all duration-300 ${player.charge >= 10 ? 'bg-yellow-400' : 'bg-dungeon-gold/50'}`} style={{ width: `${(player.charge / 10) * 100}%`}}></div>
+                            </div>
+                            
+                            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
+                                <div className="text-xs font-bold text-dungeon-gold mb-1">{player.activeSkill.name} ({player.charge}/10)</div>
+                                <div className="text-[10px] text-stone-400 leading-relaxed whitespace-pre-wrap">{player.activeSkill.desc}</div>
+                            </div>
+                        </button>
+                    )}
+
                     {/* 新增：视觉化读条倒计时 */}
                     {isPlayerTurn && !isProcessing && (
                         <div className="w-16 h-1.5 bg-stone-900 border border-stone-800 rounded-sm overflow-hidden mb-0.5 relative">
