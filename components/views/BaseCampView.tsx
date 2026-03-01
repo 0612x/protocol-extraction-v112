@@ -497,10 +497,26 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                             </div>
                             <button 
                                 className="mt-2 px-8 py-2.5 bg-red-900/80 hover:bg-red-600 text-white text-xs font-bold tracking-widest rounded transition-all shadow-lg border border-red-500/50"
-                                onClick={() => {
-                                    if(window.confirm(`【警告】不可逆操作！\n确定要销毁 ${selectedChar.name} 的残骸及其保险区物资吗？`)) {
-                                        setMetaState(prev => ({ ...prev, roster: prev.roster.filter(c => c.id !== selectedCharId) }));
-                                        setSelectedCharId(metaState.roster[0].id); 
+                                onClick={(e) => {
+                                    const el = e.currentTarget;
+                                    if (el.dataset.primed !== 'true') {
+                                        el.dataset.primed = 'true';
+                                        el.classList.add('bg-red-600', 'animate-pulse', 'border-white');
+                                        el.innerText = "⚠️ 确认销毁?";
+                                        setTimeout(() => {
+                                            if (el) {
+                                                el.dataset.primed = 'false';
+                                                el.classList.remove('bg-red-600', 'animate-pulse', 'border-white');
+                                                el.innerText = "销毁残骸";
+                                            }
+                                        }, 3000);
+                                    } else {
+                                        const targetId = selectedChar.id;
+                                        const commanderId = metaState.roster[0].id;
+                                        setSelectedCharId(commanderId); // 立即让 UI 视口切换到活着的指挥官
+                                        setTimeout(() => {
+                                            setMetaState(prev => ({ ...prev, roster: prev.roster.filter(c => c.id !== targetId) })); // 延迟销毁数据防止 React 渲染崩溃
+                                        }, 50);
                                     }
                                 }}
                             >

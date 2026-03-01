@@ -2230,32 +2230,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                     {renderBuffs(player.statuses, '', 'up')}
                 </div>
                 
-                <div className="flex items-end gap-2 pointer-events-auto">
-                    {/* Active Skill UI */}
-                    {player.activeSkill && player.level >= 4 && (
-                        <button
-                            onClick={handleActiveSkill}
-                            disabled={player.charge < 10}
-                            className={`relative group px-2 py-1 rounded border shadow-lg flex items-center gap-1.5 transition-all cursor-pointer
-                                ${player.charge >= 10 ? 'bg-dungeon-gold/20 border-dungeon-gold text-dungeon-gold hover:bg-dungeon-gold/40 animate-pulse' : 'bg-black/80 border-stone-800 text-stone-600'}
-                            `}
-                        >
-                            <div className={`w-1.5 h-1.5 rounded-full ${player.charge >= 10 ? 'bg-dungeon-gold' : 'bg-stone-700'}`}></div>
-                            <span className="text-[10px] font-bold tracking-widest">{player.activeSkill.name} ({player.charge}/10)</span>
-                            
-                            <div className="absolute bottom-full right-0 mb-2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
-                                <div className="text-xs font-bold text-dungeon-gold mb-1">{player.activeSkill.name}</div>
-                                <div className="text-[10px] text-stone-400 leading-relaxed whitespace-pre-wrap">{player.activeSkill.desc}</div>
-                            </div>
-                        </button>
-                    )}
-
+                <div className="flex flex-col items-end gap-1 pointer-events-auto mb-0.5">
+                    {/* Passive Skill */}
                     {player.passiveSkill && (
-                        <div className={`relative group px-2 py-1.5 rounded border shadow-lg flex items-center gap-1.5 cursor-help backdrop-blur-sm
+                        <div className={`relative group px-2 py-1 w-full rounded border shadow-lg flex items-center justify-start gap-1.5 cursor-help backdrop-blur-sm
                             ${player.level >= 2 ? 'bg-stone-800/80 border-stone-500 text-stone-200' : 'bg-black/80 border-stone-800 text-stone-600'}
                         `}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${player.level >= 2 ? 'bg-green-500 animate-pulse' : 'bg-red-900'}`}></div>
-                            <span className="text-[10px] font-bold tracking-widest">{player.passiveSkill.name}</span>
+                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${player.level >= 2 ? 'bg-green-500 animate-pulse' : 'bg-red-900'}`}></div>
+                            <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">{player.passiveSkill.name}</span>
                             
                             <div className="absolute bottom-full right-0 mb-2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
                                 <div className="text-xs font-bold text-dungeon-gold mb-1">{player.passiveSkill.name} {player.level >= 2 ? '' : '(未解锁)'}</div>
@@ -2263,6 +2245,29 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                                 {player.level < 2 && <div className="text-[9px] text-red-500 mt-1 font-bold">⚠️ Lv.2 解锁此被动</div>}
                             </div>
                         </div>
+                    )}
+
+                    {/* Active Skill */}
+                    {player.activeSkill && (
+                        <button
+                            onClick={handleActiveSkill}
+                            disabled={player.level < 4 || player.charge < 10}
+                            className={`relative group px-2 py-1 w-full rounded border shadow-lg flex items-center justify-start gap-1.5 transition-all cursor-pointer backdrop-blur-sm
+                                ${player.level < 4 ? 'bg-stone-900/80 border-stone-800 text-stone-600' :
+                                  player.charge >= 10 ? 'bg-dungeon-gold/20 border-dungeon-gold text-dungeon-gold hover:bg-dungeon-gold/40 animate-pulse' : 'bg-black/80 border-stone-800 text-stone-500'}
+                            `}
+                        >
+                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${player.level < 4 ? 'bg-red-900' : (player.charge >= 10 ? 'bg-dungeon-gold' : 'bg-stone-700')}`}></div>
+                            <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">
+                                {player.activeSkill.name} {player.level >= 4 ? `(${player.charge}/10)` : ''}
+                            </span>
+                            
+                            <div className="absolute bottom-full right-0 mb-2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
+                                <div className="text-xs font-bold text-dungeon-gold mb-1">{player.activeSkill.name} {player.level >= 4 ? `(${player.charge}/10)` : ''}</div>
+                                <div className="text-[10px] text-stone-400 leading-relaxed whitespace-pre-wrap">{player.activeSkill.desc}</div>
+                                {player.level < 4 && <div className="text-[9px] text-red-500 mt-1 font-bold">⚠️ Lv.4 解锁此主动技能</div>}
+                            </div>
+                        </button>
                     )}
                 </div>
             </div>
@@ -2317,32 +2322,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
                 {/* End Turn Button */}
                 <div className="flex flex-col items-end gap-1 w-auto shrink-0 z-50">
-                    {/* ACTIVE SKILL UI - 贴合执行按钮上方 */}
-                    {player.activeSkill && (
-                        <button
-                            onClick={handleActiveSkill}
-                            disabled={player.level < 4 || player.charge < 10}
-                            className={`relative group px-2 py-1.5 w-full rounded-sm border shadow-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer mb-0.5
-                                ${player.level < 4 ? 'bg-stone-900/80 border-stone-800 text-stone-600' :
-                                  player.charge >= 10 ? 'bg-dungeon-gold/20 border-dungeon-gold text-dungeon-gold hover:bg-dungeon-gold/40 animate-pulse' : 'bg-stone-900/90 border-stone-800 text-stone-500'}
-                            `}
-                        >
-                            <span className="text-[9px] font-bold tracking-widest flex items-center gap-1">
-                                <div className={`w-1.5 h-1.5 rounded-full ${player.level < 4 ? 'bg-red-900' : (player.charge >= 10 ? 'bg-dungeon-gold' : 'bg-stone-700')}`}></div>
-                                {player.activeSkill.name}
-                            </span>
-                            <div className="w-full bg-black h-1 rounded-full overflow-hidden border border-stone-800">
-                                <div className={`h-full transition-all duration-300 ${player.level < 4 ? 'bg-stone-800' : (player.charge >= 10 ? 'bg-yellow-400' : 'bg-dungeon-gold/50')}`} style={{ width: `${player.level < 4 ? 0 : (player.charge / 10) * 100}%`}}></div>
-                            </div>
-                            
-                            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 w-max max-w-[200px] bg-black/95 border border-stone-700 p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-left">
-                                <div className="text-xs font-bold text-dungeon-gold mb-1">{player.activeSkill.name} {player.level >= 4 ? `(${player.charge}/10)` : ''}</div>
-                                <div className="text-[10px] text-stone-400 leading-relaxed whitespace-pre-wrap">{player.activeSkill.desc}</div>
-                                {player.level < 4 && <div className="text-[9px] text-red-500 mt-1 font-bold">⚠️ Lv.4 解锁此主动技能</div>}
-                            </div>
-                        </button>
-                    )}
-
                     {/* 新增：视觉化读条倒计时 */}
                     {isPlayerTurn && !isProcessing && (
                         <div className="w-16 h-1.5 bg-stone-900 border border-stone-800 rounded-sm overflow-hidden mb-0.5 relative">
@@ -2352,12 +2331,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                             ></div>
                         </div>
                     )}
-                    {/* 执行按钮调整：高度从 h-16 缩小为 h-12 */}
+                    
                     <button 
                         onClick={attemptEndTurn}
                         disabled={!isPlayerTurn || isProcessing}
                         className={`
-                            relative group overflow-hidden w-16 h-12 border transition-all duration-300 shadow-xl flex flex-col items-center justify-center gap-1
+                            relative group overflow-hidden w-16 h-16 border transition-all duration-300 shadow-xl flex flex-col items-center justify-center gap-1
                             ${isDiscarding 
                                 ? 'bg-red-950 border-red-600 text-red-100 hover:bg-red-900 hover:scale-105' 
                                 : (isPlayerTurn && !isProcessing)
