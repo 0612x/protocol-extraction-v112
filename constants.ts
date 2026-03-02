@@ -587,3 +587,114 @@ export const AGENT_TEMPLATES: Partial<Character>[] = [
     passiveSkill: { id: 'void', name: '虚无剥夺', desc: '敌人的最大生命值在战斗开始时强制扣除 10%。', type: 'PASSIVE' },
     activeSkill: { id: 'void', name: '黑洞坍缩', desc: '直接将敌我双方的生命值同时减半。', type: 'ACTIVE' } }
 ];
+// (追加在 constants.ts 最底部)
+
+// --- 战区地图生态 (数值放大器与环境变数) ---
+export const MAPS = [
+    { id: 'MAP-01', name: '废弃矿坑', req: 0, hpMult: 1.0, dmgMult: 1.0, desc: '新手村/破产区。无环境变数。', color: 'text-stone-400', border: 'border-stone-500' },
+    { id: 'MAP-02', name: '生化废都', req: 15000, hpMult: 1.5, dmgMult: 1.2, desc: '开局玩家自动叠加 1 层中毒。', color: 'text-green-500', border: 'border-green-600' },
+    { id: 'MAP-03', name: '虚空裂隙', req: 50000, hpMult: 2.0, dmgMult: 1.5, desc: '开局玩家自动叠加 1 层虚弱。', color: 'text-purple-500', border: 'border-purple-600' },
+    { id: 'MAP-04', name: '欧米伽核心', req: 150000, hpMult: 3.0, dmgMult: 2.0, desc: '本局内，玩家的最大生命值强制降低 20%。', color: 'text-red-500', border: 'border-red-600' }
+];
+
+// --- 20 种纯机制驱动的怪物池 (无 Map 绑定) ---
+export const ENEMY_TEMPLATES: any[] = [
+    // 强攻型 AI (名字触发词: 鼠, 犬, 兵, 巨像)
+    { name: '拾荒新兵', maxHp: 15, intents: [{type:'ATTACK', value:3, description:'攻击', turnsRemaining:1}] },
+    { name: '矿坑鼠', maxHp: 12, statuses: { 'DODGE': 1 }, intents: [{type:'ATTACK', value:2, description:'撕咬', turnsRemaining:1}] },
+    { name: '嗜血狂犬', maxHp: 20, intents: [{type:'ATTACK', value:4, description:'流血撕咬', turnsRemaining:1}] },
+    { name: '雷暴巨像', maxHp: 35, intents: [{type:'DEBUFF', value:0, description:'感电', turnsRemaining:1}, {type:'ATTACK', value:5, description:'高压', turnsRemaining:1}] },
+    { name: '拾荒老兵', maxHp: 25, intents: [{type:'DEFEND', value:5, description:'掩体', turnsRemaining:1}, {type:'ATTACK', value:4, description:'射击', turnsRemaining:1}] },
+
+    // 重装型 AI (名字触发词: 机甲, 软泥, 医疗机, 暴徒, 守卫)
+    { name: '防爆机甲', maxHp: 40, shield: 20, intents: [{type:'DEFEND', value:8, description:'铁壁', turnsRemaining:1}, {type:'ATTACK', value:4, description:'碾压', turnsRemaining:1}] },
+    { name: '废料软泥', maxHp: 30, statuses: { 'THORNS': 1 }, intents: [{type:'ATTACK', value:2, description:'酸蚀冲撞', turnsRemaining:1}] },
+    { name: '生锈医疗机', maxHp: 25, intents: [{type:'HEAL', value:5, description:'急救协议', turnsRemaining:1}] },
+    { name: '武装暴徒', maxHp: 35, statuses: { 'STRENGTH': 1 }, intents: [{type:'ATTACK', value:4, description:'狂暴连打', turnsRemaining:1}] },
+    { name: '欧米伽守卫 (精英)', maxHp: 60, intents: [{type:'DEFEND', value:15, description:'绝境防爆', turnsRemaining:1}, {type:'ATTACK', value:6, description:'光刃', turnsRemaining:1}] },
+
+    // 生化型 AI (名字触发词: 毒, 腐蚀, 感染, 幼虫, 瘟疫)
+    { name: '毒液孢子', maxHp: 30, intents: [{type:'DEBUFF', value:0, description:'剧毒', turnsRemaining:1}, {type:'ATTACK', value:2, description:'撞击', turnsRemaining:1}] },
+    { name: '腐蚀变异体', maxHp: 35, intents: [{type:'DEBUFF', value:0, description:'腐蚀', turnsRemaining:1}, {type:'ATTACK', value:3, description:'酸液', turnsRemaining:1}] },
+    { name: '盲眼感染者', maxHp: 25, intents: [{type:'DEBUFF', value:0, description:'致盲(虚弱)', turnsRemaining:1}, {type:'ATTACK', value:2, description:'抓挠', turnsRemaining:1}] },
+    { name: '自爆幼虫', maxHp: 10, intents: [{type:'WAIT', value:0, description:'倒计时', turnsRemaining:1}, {type:'ATTACK', value:30, description:'自爆', turnsRemaining:1}] },
+    { name: '瘟疫母体 (精英)', maxHp: 70, intents: [{type:'DEBUFF', value:0, description:'生化熔炉(毒/腐蚀)', turnsRemaining:1}, {type:'ATTACK', value:5, description:'重压', turnsRemaining:1}] },
+
+    // 虚空精神型 AI (名字触发词: 信徒, 凝视者, 吞噬者, 拟态, 看守者)
+    { name: '绝望信徒', maxHp: 35, intents: [{type:'POLLUTE', value:0, description:'精神污染', turnsRemaining:1}, {type:'ATTACK', value:4, description:'法球', turnsRemaining:1}] },
+    { name: '虚空凝视者', maxHp: 40, intents: [{type:'POLLUTE', value:0, description:'序列异化', turnsRemaining:1}, {type:'ATTACK', value:3, description:'凝视', turnsRemaining:1}] },
+    { name: '记忆吞噬者', maxHp: 35, intents: [{type:'ATTACK', value:4, description:'汲取充能', turnsRemaining:1}] },
+    { name: '深渊拟态', maxHp: 10, intents: [{type:'BUFF', value:0, description:'镜面反射', turnsRemaining:1}, {type:'ATTACK', value:4, description:'镜像击', turnsRemaining:1}] },
+    { name: '裂隙看守者 (精英)', maxHp: 75, statuses: { 'THORNS': 2 }, intents: [{type:'POLLUTE', value:0, description:'虚空倒刺', turnsRemaining:1}, {type:'ATTACK', value:5, description:'裁决', turnsRemaining:1}] },
+
+    // 最终首领
+    { name: '[隐藏 Boss] 叛逃的指挥官', maxHp: 120, statuses: { 'STRENGTH': 1, 'DODGE': 1 }, intents: [{type:'DEFEND', value:10, description:'战术规避', turnsRemaining:1}, {type:'HEAL', value:10, description:'自愈细胞', turnsRemaining:1}, {type:'ATTACK', value:6, description:'致命射击', turnsRemaining:1}] }
+];
+
+// --- 50 个绝对保底安全的奇遇事件池 ---
+export const EVENTS_POOL: GameEvent[] = [
+    // 类别一：安全拾荒
+    { id: 'ev1', title: '【破损急救箱】', description: '墙角有一个积灰的急救箱。', choices: [ { label: '打开 (+20HP)', healHp: 20 }, { label: '离开' } ] },
+    { id: 'ev2', title: '【散落的金库】', description: '地上散落着一堆加密芯片。', choices: [ { label: '捡走 (+1500₮)', addGold: 1500 }, { label: '离开' } ] },
+    { id: 'ev3', title: '【漏电充能站】', description: '高压电弧在跳动。', choices: [ { label: '拼一把 (满充能, -5HP)', addCharge: 10, damageHp: 5 }, { label: '离开' } ] },
+    { id: 'ev4', title: '【废弃睡袋】', description: '一个相对安全的休息点。', choices: [ { label: '小憩 (回30%血)', healHpPct: 0.3 }, { label: '离开' } ] },
+    { id: 'ev5', title: '【死去的士兵】', description: '一具冰冷的尸体。', choices: [ { label: '掩埋行善 (最大生命+5)', addMaxHp: 5 }, { label: '离开' } ] },
+    { id: 'ev6', title: '【旧地下泉水】', description: '清澈的水流，似乎能洗刷污染。', choices: [ { label: '饮用 (清除负面状态)', removeDebuffs: true }, { label: '离开' } ] },
+    { id: 'ev7', title: '【生锈保险箱】', description: '锁芯已经锈死。', choices: [ { label: '暴力拆解 (+2000₮, -3HP)', addGold: 2000, damageHp: 3 }, { label: '离开' } ] },
+    { id: 'ev8', title: '【无人机残骸】', description: '电池里还有剩余电量。', choices: [ { label: '提取能源 (+5充能)', addCharge: 5 }, { label: '离开' } ] },
+    { id: 'ev9', title: '【防暴盾残片】', description: '一块坚硬的复合材料。', choices: [ { label: '穿戴 (战力提升)', getRelic: true }, { label: '离开' } ] },
+    { id: 'ev10', title: '【遗留的补给】', description: '一个半开的军用背包。', choices: [ { label: '搜刮 (战力提升)', getRelic: true }, { label: '离开' } ] },
+
+    // 类别二：黑市消费
+    { id: 'ev11', title: '【阴暗的游商】', description: '"朋友，买条命吗？"', choices: [ { label: '买药 (-3000₮, 满血)', reqGold: 3000, healHpPct: 1.0 }, { label: '太贵了离开' } ] },
+    { id: 'ev12', title: '【走私贩子】', description: '他向你展示了一个黑匣子。', choices: [ { label: '买盲盒 (-8000₮, 战力提升)', reqGold: 8000, getRelic: true }, { label: '离开' } ] },
+    { id: 'ev13', title: '【地下诊所】', description: '非法的手术台。', choices: [ { label: '强化骨骼 (-5000₮, MaxHP+5)', reqGold: 5000, addMaxHp: 5 }, { label: '离开' } ] },
+    { id: 'ev14', title: '【武器改装匠】', description: '火花四溅的作坊。', choices: [ { label: '磨刀 (-4000₮, 获得狂暴)', reqGold: 4000, addBuff: 'STRENGTH' }, { label: '离开' } ] },
+    { id: 'ev15', title: '【情报贩子】', description: '他手里掌握着前方的怪物弱点。', choices: [ { label: '买情报 (-2000₮, 敌虚弱)', reqGold: 2000, addDebuff: 'WEAK' }, { label: '离开' } ] },
+    { id: 'ev16', title: '【流浪医生】', description: '需要净化血液中的毒素吗？', choices: [ { label: '血清 (-3000₮, 清除Debuff)', reqGold: 3000, removeDebuffs: true }, { label: '离开' } ] },
+    { id: 'ev17', title: '【黑客终端】', description: '接入深网可能获得高额算力。', choices: [ { label: '骇入 (-3000₮, 充能满)', reqGold: 3000, addCharge: 10 }, { label: '离开' } ] },
+    { id: 'ev18', title: '【神秘售货机】', description: '投入金币，赌个运气。', choices: [ { label: '抽奖 (-5000₮, +10000₮)', reqGold: 5000, addGold: 10000 }, { label: '离开' } ] },
+    { id: 'ev19', title: '【雇佣兵营地】', description: '他们可以为你提供临时火力支援。', choices: [ { label: '雇佣 (-6000₮, 战力提升)', reqGold: 6000, getRelic: true }, { label: '离开' } ] },
+    { id: 'ev20', title: '【贪婪的难民】', description: '他饿极了，盯着你的钱包。', choices: [ { label: '施舍 (-5000₮, 战力提升)', reqGold: 5000, getRelic: true }, { label: '无视' } ] },
+
+    // 类别三：高风险博弈
+    { id: 'ev21', title: '【诡雷背包】', description: '尸体紧紧抓着背包，下面压着地雷。', choices: [ { label: '硬扯 (-15HP, 战力提升)', damageHp: 15, getRelic: true }, { label: '放弃' } ] },
+    { id: 'ev22', title: '【不稳定的源晶】', description: '辐射让你头晕目眩。', choices: [ { label: '徒手拿 (+10000₮, MaxHP-10)', addGold: 10000, addMaxHp: -10 }, { label: '离开' } ] },
+    { id: 'ev23', title: '【被压住的金砖】', description: '墙体随时会塌。', choices: [ { label: '抽离 (+6000₮, -5HP, 虚弱)', addGold: 6000, damageHp: 5, addDebuff: 'WEAK' }, { label: '离开' } ] },
+    { id: 'ev24', title: '【疯狂赌徒】', description: '"用你一半的血，换我手里的钱！"', choices: [ { label: '赌命 (-50%血, +15000₮)', reqHpPct: 0.5, addGold: 15000 }, { label: '拒绝' } ] },
+    { id: 'ev25', title: '【毒气室宝箱】', description: '弥漫着致命气体。', choices: [ { label: '闭气冲刺 (+5000₮, 中毒)', addGold: 5000, addDebuff: 'POISON' }, { label: '离开' } ] },
+    { id: 'ev26', title: '【血肉藤蔓包囊】', description: '里面包裹着什么。', choices: [ { label: '扯断 (-10HP, 流血, 战力提升)', damageHp: 10, addDebuff: 'BLEED', getRelic: true }, { label: '离开' } ] },
+    { id: 'ev27', title: '【高压电网】', description: '强行跨越会受到电击。', choices: [ { label: '强行跨越 (-15HP, 感电, 满充能)', damageHp: 15, addDebuff: 'SHOCK', addCharge: 10 }, { label: '绕路离开' } ] },
+    { id: 'ev28', title: '【尖刺陷阱】', description: '前方满是尖刺。', choices: [ { label: '冒险跨越 (-10HP, +3000₮)', damageHp: 10, addGold: 3000 }, { label: '离开' } ] },
+    { id: 'ev29', title: '【未知的注射器】', description: '不明液体。', choices: [ { label: '注射 (满血, -20HP)', healHpPct: 1.0, damageHp: 20 }, { label: '扔掉' } ] },
+    { id: 'ev30', title: '【辐射池】', description: '池底有闪光。', choices: [ { label: '打捞 (腐蚀, 战力提升)', addDebuff: 'CORROSION', getRelic: true }, { label: '离开' } ] },
+
+    // 类别四：机制异化
+    { id: 'ev31', title: '【血肉祭坛】', description: '献上生命，换取力量。', choices: [ { label: '献祭 (-10 MaxHP, 获得狂暴)', addMaxHp: -10, addBuff: 'STRENGTH' }, { label: '离开' } ] },
+    { id: 'ev32', title: '【遗忘方尖碑】', description: '凝视深渊。', choices: [ { label: '凝视 (回50血, 塞入崩坏牌)', healHp: 50, addCard: CardType.GLITCH }, { label: '离开' } ] },
+    { id: 'ev33', title: '【异化胚胎】', description: '跳动的肉球。', choices: [ { label: '吞噬 (-5 MaxHP, 获得荆棘)', addMaxHp: -5, addBuff: 'THORNS' }, { label: '离开' } ] },
+    { id: 'ev34', title: '【记忆清洗椅】', description: '洗去过往。', choices: [ { label: '坐下 (清空充能, 回满血)', addCharge: -99, healHpPct: 1.0 }, { label: '离开' } ] },
+    { id: 'ev35', title: '【低语黑石】', description: '石头在说话。', choices: [ { label: '倾听 (获得狂暴, 塞入崩坏牌)', addBuff: 'STRENGTH', addCard: CardType.GLITCH }, { label: '离开' } ] },
+    { id: 'ev36', title: '【克隆人坟场】', description: '吸收残魂碎片。', choices: [ { label: '吸收 (MaxHP+5, 受10真伤)', addMaxHp: 5, damageHp: 10 }, { label: '离开' } ] },
+    { id: 'ev37', title: '【旧神雕像】', description: '诡异的膜拜物。', choices: [ { label: '祈祷 (中毒+腐蚀, 战力提升)', addDebuff: 'POISON', getRelic: true }, { label: '离开' } ] },
+    { id: 'ev38', title: '【思维提取器】', description: '头痛欲裂。', choices: [ { label: '提取 (+10充能, 虚弱)', addCharge: 10, addDebuff: 'WEAK' }, { label: '离开' } ] },
+    { id: 'ev39', title: '【战术演算机】', description: '升级系统。', choices: [ { label: '下载 (战力提升)', getRelic: true }, { label: '离开' } ] },
+    { id: 'ev40', title: '【废弃兵工厂】', description: '倾其所有。', choices: [ { label: '改造 (-所有金币, 战力提升)', reqGold: 999999, getRelic: true }, { label: '离开' } ] },
+
+    // 类别五：强制撤离点
+    { id: 'ev41', title: '【损坏的逃生舱】', description: '如果有资金，可以重新启动。', choices: [ { label: '支付修理 (-20000₮) 撤离!', reqGold: 20000, extract: true }, { label: '太贵了, 继续' } ] },
+    { id: 'ev42', title: '【地下走私通道】', description: '看门人要求血的代价。', choices: [ { label: '割肉贿赂 (-50%血) 撤离!', reqHpPct: 0.5, extract: true }, { label: '继续前进' } ] },
+    { id: 'ev43', title: '【黑客直升机】', description: '需要能量发射信号。', choices: [ { label: '倾注能量 (-10充能) 撤离!', addCharge: -10, extract: true }, { label: '不撤离' } ] },
+    { id: 'ev44', title: '【通风管道】', description: '太狭窄了，必须丢弃重物。', choices: [ { label: '丢弃负重 (-10000₮) 撤离!', reqGold: 10000, extract: true }, { label: '不跑' } ] },
+    { id: 'ev45', title: '【军方救援信标】', description: '极其危险的引路灯。', choices: [ { label: '顶住压力 (-30HP) 撤离!', damageHp: 30, extract: true }, { label: '无视离开' } ] },
+    { id: 'ev46', title: '【黑市传送门】', description: '以物换物，等价交换。', choices: [ { label: '以物换物 (-20 MaxHP) 撤离!', addMaxHp: -20, extract: true }, { label: '拒绝' } ] },
+    { id: 'ev47', title: '【旧排水渠】', description: '污水横流的逃生口。', choices: [ { label: '极限逃生 (-90%血) 撤离!', reqHpPct: 0.9, extract: true }, { label: '算了吧' } ] },
+    { id: 'ev48', title: '【雇佣兵车队】', description: '他们顺路返回地表。', choices: [ { label: '买座位 (-15000₮) 撤离!', reqGold: 15000, extract: true }, { label: '没钱' } ] },
+    { id: 'ev49', title: '【不稳定的裂隙】', description: '跳进去，听天由命。', choices: [ { label: '纵身一跃 (清空充能/状态) 撤离!', addCharge: -99, removeDebuffs: true, extract: true }, { label: '太危险' } ] },
+    { id: 'ev50', title: '【总部的紧急传唤】', description: '你收到了强制回收的绿灯信号！', choices: [ { label: '响应召回 (免费安全撤离)', extract: true }, { label: '继续战斗' } ] }
+];
+
+
+
+
+

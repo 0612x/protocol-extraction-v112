@@ -11,8 +11,11 @@ import { WarehouseView } from './components/views/WarehouseView';
 import { ExtractionView } from './components/views/ExtractionView';
 import { DraftView } from './components/views/DraftView';
 import { SettlementView } from './components/views/SettlementView'; // 引入结算界面
+import { EventView } from './components/views/EventView'; // 新增奇遇面板
 import { getPlayerZone } from './utils/gridLogic'; // 引入区域计算
 import { LucideX, LucideSkull } from 'lucide-react';
+import { GameEvent, EventChoice } from './types';
+import { MAPS, ENEMY_TEMPLATES, EVENTS_POOL } from './constants';
 
 const INITIAL_PLAYER: PlayerStats = {
   level: 0,
@@ -40,7 +43,7 @@ const INITIAL_INVENTORY: InventoryState = {
 
 const INITIAL_META_STATE: MetaState = {
   resources: {
-    [ResourceType.GOLD]: 1000000,
+    [ResourceType.GOLD]: 100000,
     [ResourceType.SOULS]: 0,
     [ResourceType.TECH_SCRAP]: 5,
     [ResourceType.INSIGHT]: 0
@@ -96,6 +99,9 @@ export default function App() {
   const [draftOptions, setDraftOptions] = useState<Blueprint[]>([]);
   const [isCombatInventoryOpen, setIsCombatInventoryOpen] = useState(false);
   
+  const [currentMap, setCurrentMap] = useState<string>('MAP-01'); // 当前战区
+  const [pendingEvent, setPendingEvent] = useState<GameEvent | null>(null); // 待处理奇遇
+
   // Developer Tools
   const [isGodMode, setIsGodMode] = useState(false);
 
@@ -144,81 +150,43 @@ export default function App() {
         });
       }, [inventory.items, activeCharId, metaState.roster]);
 
-  const generateEnemy = (level: number, currentStage: number): Enemy => {
-    // Difficulty Curve Logic - MICRO NUMBERS
-    // A full basic combo (Strike+Strike+BP) deals 2+2+4 = 8 Damage.
-    
-    const depthScale = 1 + ((level - 1) * 0.4);
+  const generateEnemy = (level: number, currentStage: number, mapId: string): Enemy => {
+      const isBoss = currentStage % STAGES_PER_DEPTH === 0;
+      const mapConfig = MAPS.find(m => m.id === mapId) || MAPS[0];
+      
+      // 1. 筛选怪物池 (精英和首领仅在特定层数出没)
+      let pool = ENEMY_TEMPLATES.filter(e => !e.name.includes('Boss') && !e.name.includes('精英'));
+      if (isBoss) {
+          pool = ENEMY_TEMPLATES.filter(e => e.name.includes('Boss') || e.name.includes('守卫') || e.name.includes('母体') || e.name.includes('看守者'));
+      } else if (currentStage === STAGES_PER_DEPTH - 1) {
+          pool = ENEMY_TEMPLATES.filter(e => e.name.includes('精英'));
+      }
+      if (pool.length === 0) pool = ENEMY_TEMPLATES; 
+      
+      const template = pool[Math.floor(Math.random() * pool.length)];
 
-    const STAGE_CONFIGS: Record<number, Partial<Enemy>> = {
-        1: {
-            name: "腐化软泥",
-            maxHp: 54, // Buffed: 36 * 1.5
-            intents: [
-                { type: 'ATTACK', value: 3, description: '撞击', turnsRemaining: 1 }, 
-                { type: 'DEFEND', value: 4, description: '蜷缩', turnsRemaining: 1 }
-            ]
-        },
-        2: {
-            name: "墓穴巡逻兵",
-            maxHp: 80, // Buffed: 54 * 1.5
-            intents: [
-                { type: 'ATTACK', value: 4, description: '锈刀挥砍', turnsRemaining: 1 },
-                // Changed from '格挡姿态' to '硬化' (Thorns) to match CombatView logic
-                { type: 'BUFF', value: 3, description: '硬化', turnsRemaining: 1 },
-                { type: 'DEFEND', value: 10, description: '举盾', turnsRemaining: 1 }
-            ]
-        },
-        3: {
-            name: "虚空信徒",
-            maxHp: 115, // Buffed: 75 * 1.5
-            intents: [
-                { type: 'POLLUTE', value: 0, description: '精神污染', turnsRemaining: 1 },
-                { type: 'ATTACK', value: 6, description: '暗影箭', turnsRemaining: 1 } 
-            ]
-        },
-        4: {
-            name: "深渊骑士 (精英)",
-            maxHp: 180, // Buffed: 120 * 1.5
-            intents: [
-                { type: 'ATTACK', value: 8, description: '重斩', turnsRemaining: 1 },
-                { type: 'ATTACK', value: 12, description: '蓄力处决', turnsRemaining: 2 }, 
-                // Add a buff move for variety
-                { type: 'BUFF', value: 2, description: '狂暴', turnsRemaining: 1 }
-            ]
-        },
-        5: {
-            name: `区域守门人: 巨像 (BOSS)`,
-            maxHp: 270, // Buffed: 180 * 1.5
-            intents: [
-                 { type: 'POLLUTE', value: 0, description: '异化指令', turnsRemaining: 1 },
-                 { type: 'ATTACK', value: 9, description: '粉碎', turnsRemaining: 1 }, 
-                 // Changed from '自我修复' (BUFF) to '再生' (HEAL)
-                 { type: 'HEAL', value: 10, description: '再生', turnsRemaining: 1 }
-            ]
-        }
-    };
+      // 2. 获取地图的基础放大倍率与关卡深度加成
+      const hpMult = mapConfig.hpMult || 1;
+      const dmgMult = mapConfig.dmgMult || 1;
+      const depthScale = 1 + ((level - 1) * 0.3); // 每大层增加30%
 
-    const config = STAGE_CONFIGS[currentStage] || STAGE_CONFIGS[1];
-    
-    const scaledHp = Math.floor(config.maxHp! * depthScale);
-    // Scale intents damage (Attack) AND Healing/Buffs
-    const scaledIntents = config.intents!.map(i => ({
-        ...i,
-        value: (i.type === 'ATTACK' || i.type === 'HEAL' || i.type === 'BUFF') 
-            ? Math.floor(i.value * depthScale) 
-            : i.value
-    }));
+      const finalMaxHp = Math.floor(template.maxHp * hpMult * depthScale);
 
-    return {
-      name: config.name!,
-      maxHp: scaledHp,
-      currentHp: scaledHp,
-      shield: 0,
-      statuses: {},
-      intents: scaledIntents,
-      currentIntentIndex: 0
-    };
+      // 3. 动态缩放意图数值
+      const scaledIntents = template.intents.map((i: any) => ({
+          ...i,
+          value: (i.type === 'ATTACK') ? Math.floor(i.value * dmgMult * depthScale) : Math.floor(i.value * depthScale)
+      }));
+
+      return {
+          name: template.name,
+          maxHp: finalMaxHp,
+          currentHp: finalMaxHp,
+          shield: template.shield || 0,
+          statuses: template.statuses ? { ...template.statuses } : {},
+          intents: scaledIntents,
+          currentIntentIndex: 0
+      };
   };
 
   const enterBaseCamp = () => {
@@ -337,52 +305,148 @@ export default function App() {
     }, 2500);
   };
 
-  const startExpedition = (charId?: string) => {
+  const startExpedition = (mapId: string, charId?: string) => {
     const char = charId ? metaState.roster.find(c => c.id === charId) || metaState.roster[0] : metaState.roster[0];
     if (char.status === 'DEAD') return; // 防御性拦截
     
-    setActiveCharId(char.id); // 锁定出战者
+    setCurrentMap(mapId);
+    setActiveCharId(char.id); 
     
-    // 初始化被动和经验
+    // 强制削减 MAP-04 欧米伽核心环境变数：最大血量降低20%
+    let initialMaxHp = char.stats.maxHp;
+    let initialHp = char.stats.currentHp;
+    if (mapId === 'MAP-04') {
+        initialMaxHp = Math.floor(initialMaxHp * 0.8);
+        initialHp = Math.min(initialHp, initialMaxHp);
+    }
+
     setPlayer({
         ...char.stats,
-        charge: 0, // 重置主动充能
+        maxHp: initialMaxHp,
+        currentHp: initialHp,
+        charge: 0, 
         pendingExp: 0,
-        runDamageBonus: 0, // 重置局内临时伤害
-        runMaxHpBonus: 0 // 重置死灵血量加成
+        runDamageBonus: 0, 
+        runMaxHpBonus: 0 
     });
     setInventory(char.inventory);
 
     setDepth(1);
     setStage(1);
-    startCombat(1, 1, char.id);
+    startCombat(1, 1, char.id, mapId);
   };
 
-  const startCombat = (level: number, currentStage: number, overrideCharId?: string) => {
-    setEnemy(() => generateEnemy(level, currentStage));
+  const startCombat = (level: number, currentStage: number, overrideCharId?: string, mapId?: string) => {
+    const activeMap = mapId || currentMap;
+    setEnemy(() => generateEnemy(level, currentStage, activeMap));
 
-    // Apply start-of-combat stats (Shield)
     setPlayer(prev => {
-        // 修复重装被动：开战时动态计算 10% 最大生命值的护甲并叠加
         const isBulwark = prev.passiveSkill?.id === 'bulwark' && prev.level >= 2;
         const passiveShield = isBulwark ? Math.floor(prev.maxHp * 0.1) : 0;
         
+        // 施加地图全局 Debuff (MAP-02 中毒, MAP-03 虚弱)
+        const newStatuses = { ...prev.statuses };
+        if (activeMap === 'MAP-02') newStatuses['POISON'] = (newStatuses['POISON'] || 0) + 1;
+        if (activeMap === 'MAP-03') newStatuses['WEAK'] = (newStatuses['WEAK'] || 0) + 1;
+
         return {
             ...prev,
-            shield: prev.shieldStart + passiveShield 
+            shield: prev.shieldStart + passiveShield,
+            statuses: newStatuses
         };
-    });
+   });
     setPhase('COMBAT');
   };
 
+  const proceedToLootRouting = () => {
+      const isEliteOrBoss = stage >= 4;
+      const shouldDraft = isEliteOrBoss || Math.random() < 0.25;
+
+      if (shouldDraft) {
+          const ownedIds = new Set(player.blueprints.map(bp => bp.id));
+          const availablePool = BLUEPRINT_POOL.filter(bp => !ownedIds.has(bp.id));
+
+          if (availablePool.length === 0) {
+              setPhase('LOOT');
+              return;
+          }
+
+          const shuffledPool = [...availablePool].sort(() => 0.5 - Math.random());
+          const options = shuffledPool.slice(0, 3);
+          
+          setDraftOptions(options);
+          setPhase('DRAFT');
+      } else {
+          setPhase('LOOT');
+      }
+  };
+
+  // 解析并执行奇遇选项 (必须和 handleWinCombat 平级！)
+  const handleEventResolve = (choice: EventChoice) => {
+      if (choice.reqGold && choice.reqGold !== 999999) {
+          setMetaState(prev => ({...prev, resources: {...prev.resources, [ResourceType.GOLD]: Math.max(0, (prev.resources[ResourceType.GOLD] || 0) - choice.reqGold!)}}));
+      } else if (choice.reqGold === 999999) {
+          setMetaState(prev => ({...prev, resources: {...prev.resources, [ResourceType.GOLD]: 0}}));
+      }
+      
+      if (choice.reqHpPct) {
+          setPlayer(prev => ({...prev, currentHp: Math.max(1, prev.currentHp - Math.floor(prev.maxHp * choice.reqHpPct!))}));
+      }
+
+      setPlayer(prev => {
+          let hp = prev.currentHp;
+          let maxHp = prev.maxHp;
+          let charge = prev.charge;
+          let sts = { ...prev.statuses };
+
+          if (choice.healHp) hp = Math.min(maxHp, hp + choice.healHp);
+          if (choice.healHpPct) hp = Math.min(maxHp, hp + Math.floor(maxHp * choice.healHpPct));
+          if (choice.damageHp) hp = Math.max(1, hp - choice.damageHp);
+          if (choice.addMaxHp) {
+              maxHp = Math.max(1, maxHp + choice.addMaxHp);
+              hp = Math.min(hp, maxHp);
+          }
+          if (choice.addCharge) charge = Math.min(10, Math.max(0, charge + choice.addCharge));
+          if (choice.addBuff) sts[choice.addBuff] = (sts[choice.addBuff] || 0) + 1;
+          if (choice.addDebuff) sts[choice.addDebuff] = (sts[choice.addDebuff] || 0) + (choice.addDebuff === 'POISON' ? 2 : 1);
+          if (choice.removeDebuffs) {
+              delete sts['POISON']; delete sts['WEAK']; delete sts['CORROSION']; delete sts['BLEED']; delete sts['BURN']; delete sts['SHOCK'];
+          }
+
+          return { ...prev, currentHp: hp, maxHp, charge, statuses: sts };
+      });
+
+      if (choice.addGold) {
+          setMetaState(prev => ({...prev, resources: {...prev.resources, [ResourceType.GOLD]: (prev.resources[ResourceType.GOLD] || 0) + choice.addGold!}}));
+      }
+      if (choice.addCard) {
+          setPlayer(prev => ({ ...prev, deck: [...prev.deck, choice.addCard!] }));
+      }
+      if (choice.getRelic) {
+          setPlayer(prev => ({ ...prev, damageBonus: prev.damageBonus + 1, shieldBonus: prev.shieldBonus + 1 }));
+      }
+
+      if (choice.extract) {
+          handleExtract();
+          return;
+      }
+
+      if (player.currentHp <= 0 && !choice.healHp && !choice.healHpPct) {
+          handleLoseCombat();
+          return;
+      }
+
+      setPendingEvent(null);
+      // 事件处理完毕后，直接开始下一层的战斗
+      setStage(s => s + 1);
+      startCombat(depth, stage + 1);
+  };
+
   const handleWinCombat = () => {
-    // 经验结算与被动触发
-    const expGain = stage === 5 ? 100 : stage >= 4 ? 30 : 15;
+    const expGain = stage === STAGES_PER_DEPTH ? 100 : stage >= STAGES_PER_DEPTH - 1 ? 30 : 15;
     setPlayer(prev => {
         let runHpBonus = prev.runMaxHpBonus || 0;
-        if (prev.passiveSkill?.id === 'necromancer' && prev.level >= 2) {
-            runHpBonus += 2; // 死灵击杀增加上限
-        }
+        if (prev.passiveSkill?.id === 'necromancer' && prev.level >= 2) runHpBonus += 2; 
 
         let newHp = prev.currentHp;
         if (prev.passiveSkill?.id === 'medic' && prev.level >= 2) {
@@ -390,9 +454,7 @@ export default function App() {
         }
 
         let runDmgBonus = prev.runDamageBonus || 0;
-        if (prev.passiveSkill?.id === 'thug' && prev.level >= 2) {
-            runDmgBonus += 1;
-        }
+        if (prev.passiveSkill?.id === 'thug' && prev.level >= 2) runDmgBonus += 1;
 
         return {
             ...prev,
@@ -404,33 +466,11 @@ export default function App() {
         };
     });
 
-    // DROP RATE LOGIC:
-    // Stage 4 (Elite) or Stage 5 (Boss) = Guaranteed Draft (100%)
-    // Others = 25% Chance
-    const isEliteOrBoss = stage >= 4;
-    const shouldDraft = isEliteOrBoss || Math.random() < 0.25;
-
-    if (shouldDraft) {
-        // FILTER: Remove blueprints the player ALREADY owns
-        const ownedIds = new Set(player.blueprints.map(bp => bp.id));
-        const availablePool = BLUEPRINT_POOL.filter(bp => !ownedIds.has(bp.id));
-
-        // If player has collected ALL blueprints, skip draft
-        if (availablePool.length === 0) {
-            setPhase('LOOT');
-            return;
-        }
-
-        // Shuffle available unique blueprints
-        const shuffledPool = [...availablePool].sort(() => 0.5 - Math.random());
-        const options = shuffledPool.slice(0, 3);
-        
-        setDraftOptions(options);
-        setPhase('DRAFT');
-    } else {
-        setPhase('LOOT');
-    }
+    // 战斗结束后，立刻进入掉落/蓝图选择环节
+    proceedToLootRouting();
   };
+
+
 
   const handleDraft = (bp: Blueprint) => {
       setPlayer(prev => ({
@@ -442,18 +482,25 @@ export default function App() {
 
   const handleLootDone = () => {
     // RESET STATUSES AND SHIELD between stages
-    // Keep HP and Deck
     setPlayer(prev => ({
         ...prev,
-        statuses: {}, // Clear Buffs
-        shield: 0     // Clear accumulated shield (passive shield re-applies in startCombat)
+        statuses: {}, 
+        shield: 0     
     }));
 
     if (stage === STAGES_PER_DEPTH) {
-        setPhase('EXTRACTION');
+        setPhase('EXTRACTION'); // 最后一层打完直接进入撤离
     } else {
-        setStage(s => s + 1);
-        startCombat(depth, stage + 1);
+        // 在玩家整理完战利品，准备前往下一层的路上，判定是否遭遇奇遇 (30%概率)
+        const shouldEvent = Math.random() < 0.30;
+        if (shouldEvent) {
+            const randomEvent = EVENTS_POOL[Math.floor(Math.random() * EVENTS_POOL.length)];
+            setPendingEvent(randomEvent);
+            setPhase('EVENT');
+        } else {
+            setStage(s => s + 1);
+            startCombat(depth, stage + 1);
+        }
     }
   };
 
@@ -553,6 +600,7 @@ export default function App() {
               onLose={handleLoseCombat} 
               onOpenInventory={() => setIsCombatInventoryOpen(true)}
               isGodMode={isGodMode}
+              currentMap={currentMap} // 核心优化：传入地图ID让环境变数生效
             />
             
             {/* Combat Inventory Overlay */}
@@ -589,6 +637,15 @@ export default function App() {
                 </div>
             )}
         </>
+      )}
+
+      {phase === 'EVENT' && pendingEvent && (
+          <EventView 
+              event={pendingEvent} 
+              player={player} 
+              gold={metaState.resources[ResourceType.GOLD] || 0} 
+              onResolve={handleEventResolve} 
+          />
       )}
 
       {phase === 'DRAFT' && (

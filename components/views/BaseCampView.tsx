@@ -1,16 +1,16 @@
 
 import React, { useState,useEffect, useCallback } from 'react';
 import { MetaState, ResourceType, BuildingType, Character, InventoryState,CardType} from '../../types';
-import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText, LucideSkull, LucideX } from 'lucide-react';
+import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText, LucideSkull, LucideX, LucideLock, LucidePickaxe, LucideBiohazard, LucideOrbit, LucideRadiation } from 'lucide-react';
 import { InventoryView } from './InventoryView';
-import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS, AGENT_TEMPLATES, EXP_THRESHOLDS } from '../../constants'; // 引入战利品表以生成悬赏
+import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS, AGENT_TEMPLATES, EXP_THRESHOLDS, MAPS } from '../../constants'; // 引入战利品表以生成悬赏
 import { createEmptyGrid, removeItemFromGrid,canPlaceItem, placeItemInGrid } from '../../utils/gridLogic';
 import { GridItem } from '../../types';
 
 interface BaseCampViewProps {
   metaState: MetaState;
   setMetaState: React.Dispatch<React.SetStateAction<MetaState>>;
-  onStartRun: () => void;
+  onStartRun: (mapId: string, charId?: string) => void;
   onUpgradeBuilding: (type: BuildingType) => void;
 }
 
@@ -22,7 +22,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
   const [bodySubTab, setBodySubTab] = useState<BodySubTab>('STATUS');
   const [galleryItem, setGalleryItem] = useState<Partial<Character> | null>(null);
   const [selectedCharId, setSelectedCharId] = useState<string>(metaState.roster[0]?.id || '');
-  
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState<boolean>(false);
   // 招募克隆仓动画与确认面板状态
   const [isRecruiting, setIsRecruiting] = useState(false); 
   const [recruitmentResult, setRecruitmentResult] = useState<Character[] | null>(null); // 核心：支持十连抽数组
@@ -205,40 +205,109 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
     </div>
   );
 
-  const renderStartTab = () => (
-    <div className="flex flex-col items-center justify-center h-full gap-8 animate-fade-in w-full px-6">
-        <div className="text-center space-y-2">
-            <h1 className="text-4xl font-display font-bold text-stone-300 tracking-widest">
-                深渊潜行 <span className="text-stone-600 text-lg">DIVE</span>
-            </h1>
-            <p className="text-xs text-stone-500 italic">"准备好面对未知了吗？"</p>
-        </div>
+  const renderStartTab = () => {
+      // 修复：只计算选中角色背包内物品的总价值（不计算全局资金）
+      const gearScore = selectedChar.inventory.items.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
 
-        {selectedChar.status === 'DEAD' ? (
-            <div className="w-full max-w-sm p-8 bg-stone-900/40 border border-stone-800 rounded-xl flex flex-col items-center gap-4 shadow-md">
-                <div className="p-4 bg-red-950/50 rounded-full text-stone-600 shadow-inner">
-                    <LucideSkull size={48} className="opacity-50" />
-                </div>
-                <div className="text-center">
-                    <h3 className="text-xl font-bold text-stone-500">当前素体已失去生命体征</h3>
-                    <p className="text-xs text-stone-600 mt-1">请前往 [素体] 面板清理残骸或切换素体</p>
-                </div>
-            </div>
-        ) : (
-            <div className="w-full max-w-sm p-8 bg-stone-900/40 border border-stone-700 rounded-xl hover:border-dungeon-red transition-all cursor-pointer group shadow-lg hover:shadow-dungeon-red/20" onClick={() => onStartRun(selectedCharId)}>
-                <div className="flex flex-col items-center gap-4">
-                    <div className="p-4 bg-dungeon-red/10 rounded-full text-dungeon-red group-hover:bg-dungeon-red group-hover:text-white transition-colors duration-500">
-                        <LucidePlay size={48} className="ml-1" />
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-xl font-bold text-stone-200 group-hover:text-white">开始行动</h3>
-                        <p className="text-xs text-stone-500 mt-1">当前编队: {selectedChar.name}</p>
-                    </div>
-                </div>
-            </div>
-        )}
-    </div>
-  );
+      return (
+          <div className="flex flex-col items-center justify-start w-full h-full animate-fade-in p-4 overflow-y-auto custom-scrollbar">
+              <div className="text-center space-y-2 mb-6 mt-4 shrink-0">
+                  <h2 className="text-3xl font-display font-bold text-dungeon-gold tracking-widest drop-shadow-[0_0_10px_rgba(202,138,4,0.3)]">战区部署</h2>
+                  <p className="text-stone-400 text-xs">当前编队携入战备估值：<span className="text-yellow-400 font-mono font-bold">{gearScore.toLocaleString()} ₮</span></p>
+              </div>
+
+              {/* 核心优化：浓缩版派遣素体卡片 */}
+              <div className="flex flex-col items-center w-full max-w-md mb-6 bg-stone-900/40 p-4 rounded-xl border border-stone-800 shadow-md relative ">
+                  <div className="flex items-center justify-between w-full mb-3 relative z-10">
+                      <div className="flex items-center gap-2">
+                          <LucideUser size={16} className="text-stone-400" />
+                          <span className="text-sm font-bold text-stone-300 tracking-widest">当前派遣编队</span>
+                      </div>
+                      <button 
+                          onClick={() => setIsRosterModalOpen(true)}
+                          className="text-xs bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 py-1.5 rounded transition-colors flex items-center gap-1 border border-stone-700 hover:border-stone-400 shadow-inner"
+                      >
+                          <LucideMap size={12}/> 切换素体
+                      </button>
+                  </div>
+                  <div className="w-full flex justify-between items-center bg-black/60 p-3 rounded-lg border border-stone-800 shadow-inner relative z-10">
+                      <div className="flex flex-col gap-1">
+                          <span className={`text-sm font-bold tracking-widest ${selectedChar.status === 'DEAD' ? 'text-stone-600 line-through' : 'text-dungeon-gold'}`}>{selectedChar.name}</span>
+                          <span className="text-[10px] text-stone-500 font-mono">Lv.{selectedChar.level} | 携入战备: {selectedChar.inventory.items.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0).toLocaleString()} ₮</span>
+                      </div>
+                      {selectedChar.status === 'DEAD' && <LucideSkull size={24} className="text-red-900"/>}
+                  </div>
+              </div>
+
+              {selectedChar.status === 'DEAD' ? (
+                  <div className="w-full max-w-sm p-8 bg-stone-900/40 border border-stone-800 rounded-xl flex flex-col items-center gap-4 shadow-md">
+                      <div className="p-4 bg-red-950/50 rounded-full text-stone-600 shadow-inner">
+                          <LucideSkull size={48} className="opacity-50" />
+                      </div>
+                      <div className="text-center">
+                          <h3 className="text-xl font-bold text-stone-500">当前素体已失去生命体征</h3>
+                          <p className="text-xs text-stone-600 mt-1">请清理残骸或在上方切换其他素体</p>
+                      </div>
+                  </div>
+              ) : (
+                  <div className="grid grid-cols-1 gap-4 w-full max-w-md pb-10">
+                      {MAPS.map(map => {
+                          const isLocked = gearScore < map.req;
+                          
+                          // 动态赋予地图专属视觉特效
+                          let MapIcon = LucideMap;
+                          let bgTheme = '';
+                          if (map.id === 'MAP-01') { MapIcon = LucidePickaxe; bgTheme = 'from-stone-900/80 to-black'; }
+                          if (map.id === 'MAP-02') { MapIcon = LucideBiohazard; bgTheme = 'from-green-950/40 to-black'; }
+                          if (map.id === 'MAP-03') { MapIcon = LucideOrbit; bgTheme = 'from-purple-950/40 to-black'; }
+                          if (map.id === 'MAP-04') { MapIcon = LucideRadiation; bgTheme = 'from-red-950/40 to-black'; }
+
+                          return (
+                              <div key={map.id} className={`relative p-5 rounded-xl border flex flex-col gap-3 transition-all overflow-hidden ${isLocked ? `border-stone-800 bg-stone-950/90 saturate-50` : `bg-gradient-to-br ${bgTheme} hover:scale-[1.02] cursor-pointer shadow-lg hover:shadow-2xl ${map.border}`}`}>
+                                  
+                                  {/* 沉浸式地图底纹水印 */}
+                                  <div className={`absolute -right-6 -bottom-6 opacity-[0.07] pointer-events-none ${isLocked ? 'grayscale text-stone-500' : map.color}`}>
+                                      <MapIcon size={140} strokeWidth={1} />
+                                  </div>
+
+                                  {/* 核心优化：极具质感的封锁线样式 */}
+                                  {isLocked && (
+                                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.6)_10px,rgba(0,0,0,0.6)_20px)] backdrop-blur-sm">
+                                          <div className="text-red-400 font-bold tracking-widest bg-stone-900/95 px-5 py-2.5 rounded-lg border border-red-900/50 shadow-[0_0_20px_rgba(0,0,0,0.8)] flex items-center gap-2">
+                                              <LucideLock size={16}/> 权限封锁: 需 {map.req.toLocaleString()} ₮
+                                          </div>
+                                      </div>
+                                  )}
+                                  
+                                  <div className="flex justify-between items-start relative z-10">
+                                      <h3 className={`text-xl font-bold tracking-widest ${isLocked ? 'text-stone-500' : map.color} drop-shadow-md flex items-center gap-2`}>
+                                          <MapIcon size={20} className="opacity-80" />
+                                          {map.name}
+                                      </h3>
+                                      <span className={`text-[10px] px-2 py-1 rounded font-mono border shadow-inner ${isLocked ? 'bg-stone-900 border-stone-800 text-stone-600' : 'bg-black/60 border-stone-700 text-stone-300'}`}>
+                                          战备: {map.req.toLocaleString()} ₮
+                                      </span>
+                                  </div>
+                                  
+                                  <p className={`text-xs min-h-[36px] leading-relaxed relative z-10 ${isLocked ? 'text-stone-600' : 'text-stone-400'}`}>
+                                      {map.desc}
+                                  </p>
+                                  
+                                  <button 
+                                      className={`w-full py-2.5 mt-1 rounded font-bold text-sm tracking-widest transition-all relative z-10 ${isLocked ? 'bg-stone-900/50 text-stone-700 cursor-not-allowed border border-stone-800/50' : 'bg-stone-900 text-stone-200 hover:bg-stone-800 hover:text-white border border-stone-700 hover:border-stone-400 shadow-[0_0_10px_rgba(0,0,0,0.5)] inset-shadow-sm'}`}
+                                      onClick={() => { if(!isLocked) onStartRun(map.id, selectedCharId); }}
+                                      disabled={isLocked}
+                                  >
+                                      {isLocked ? 'DEPLOYMENT DENIED' : '潜入该战区'}
+                                  </button>
+                              </div>
+                          );
+                      })}
+                  </div>
+              )}
+          </div>
+      );
+  };
 
   const renderMissionTab = () => (
       <div className="flex flex-col items-center gap-6 w-full max-w-md animate-fade-in p-4">
@@ -1249,7 +1318,50 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
               {toast.msg}
           </div>
       )}
-
+{/* 核心优化：素体选择弹窗 */}
+      {isRosterModalOpen && (
+          <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 animate-fade-in">
+              <div className="w-full max-w-md bg-stone-900 border border-stone-700 rounded-xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+                  <div className="flex justify-between items-center p-4 border-b border-stone-800 bg-black/50">
+                      <div className="flex items-center gap-2">
+                          <LucideUser size={20} className="text-dungeon-gold" />
+                          <h3 className="font-bold text-stone-200 tracking-widest">选择行动素体</h3>
+                      </div>
+                      <button onClick={() => setIsRosterModalOpen(false)} className="text-stone-500 hover:text-white transition-colors p-1 bg-stone-800 rounded-full hover:bg-red-900">
+                          <LucideX size={16} />
+                      </button>
+                  </div>
+                  <div className="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-3">
+                     {metaState.roster.map(char => {
+                         const charGearScore = char.inventory.items.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
+                         const isSelected = selectedCharId === char.id;
+                         const isDead = char.status === 'DEAD';
+                         return (
+                             <button
+                                 key={char.id}
+                                 onClick={() => {
+                                     if (!isDead) {
+                                         setSelectedCharId(char.id);
+                                         setIsRosterModalOpen(false); // 选中后自动关闭弹窗
+                                     }
+                                 }}
+                                 disabled={isDead}
+                                 className={`p-3 rounded-lg border flex flex-col items-start gap-1 transition-all ${isSelected ? 'bg-dungeon-gold/20 border-dungeon-gold shadow-[0_0_15px_rgba(202,138,4,0.15)]' : 'bg-black/50 border-stone-800 hover:border-stone-500 hover:bg-stone-800'} ${isDead ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
+                             >
+                                 <div className="flex justify-between w-full items-center">
+                                     <span className={`text-sm font-bold tracking-wider ${isSelected ? 'text-dungeon-gold' : 'text-stone-300'}`}>{char.name}</span>
+                                     {isDead ? <LucideSkull size={14} className="text-red-600"/> : <span className="text-[10px] text-stone-400 bg-stone-900 border border-stone-700 px-1.5 py-0.5 rounded">Lv.{char.level}</span>}
+                                 </div>
+                                 <div className="text-xs text-stone-500 font-mono mt-1">
+                                     携入战备: <span className={isSelected ? "text-yellow-500" : "text-stone-400"}>{charGearScore.toLocaleString()} ₮</span>
+                                 </div>
+                             </button>
+                         );
+                     })}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

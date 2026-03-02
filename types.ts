@@ -1,5 +1,5 @@
 
-export type GamePhase = 'MENU' | 'COMBAT' | 'DRAFT' | 'LOOT' | 'EXTRACTION' | 'META' | 'GAME_OVER' | 'BASE_CAMP' | 'WAREHOUSE' | 'SETTLEMENT';
+export type GamePhase = 'MENU' | 'COMBAT' | 'DRAFT' | 'LOOT' | 'EXTRACTION' | 'META' | 'GAME_OVER' | 'BASE_CAMP' | 'WAREHOUSE' | 'SETTLEMENT'| 'EVENT';
 
 export enum CardType {
   STRIKE = 'STRIKE',
@@ -61,6 +61,32 @@ export interface Character {
   status?: 'ALIVE' | 'DEAD'; // 新增生存状态
   stats: PlayerStats;       // Current combat stats/deck
   inventory: InventoryState; // Equipped items and backpack
+}
+
+// --- 奇遇事件系统类型 ---
+export interface EventChoice {
+    label: string;
+    reqGold?: number;       // 需要消耗的资金
+    reqHpPct?: number;      // 需要消耗的血量百分比 (0-1)
+    healHp?: number;        // 回复血量
+    healHpPct?: number;     // 回复血量百分比 (0-1)
+    damageHp?: number;      // 受到伤害
+    addMaxHp?: number;      // 增加/减少最大血量
+    addGold?: number;       // 获得/失去资金
+    addCharge?: number;     // 获得/失去充能
+    addBuff?: string;       // 获得 Buff (如 STRENGTH)
+    addDebuff?: string;     // 获得 Debuff (如 WEAK)
+    removeDebuffs?: boolean;// 清除负面状态
+    addCard?: CardType;     // 获得卡牌入初始牌库 (如 GLITCH)
+    getRelic?: boolean;     // 获得遗物(简单转化为全属性提升)
+    extract?: boolean;      // 强制安全撤离
+}
+
+export interface GameEvent {
+    id: string;
+    title: string;
+    description: string;
+    choices: EventChoice[];
 }
 
 export interface RunRecord {

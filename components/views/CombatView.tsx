@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { CardType, Enemy, PlayerStats, Blueprint, EnemyIntent } from '../../types';
-import { CARD_DEFINITIONS, HAND_SIZE, MAX_BUFFER_SIZE, DRAW_AMOUNT, STARTING_BLUEPRINTS, BLUEPRINT_POOL } from '../../constants';
+import { CardType, Enemy, PlayerStats, Blueprint, EnemyIntent, GameEvent } from '../../types';
+import { CARD_DEFINITIONS, HAND_SIZE, MAX_BUFFER_SIZE, DRAW_AMOUNT, STARTING_BLUEPRINTS, BLUEPRINT_POOL, EVENTS_POOL, STAGES_PER_DEPTH, MAPS } from '../../constants';
 import { Card } from '../ui/Card';
-import { LucideSword, LucideShield, LucideBookOpen, LucideX, LucideGhost, LucideHeart, LucideEye, LucideTrash2, LucideDroplets, LucideFlame, LucideSnowflake, LucideZap, LucideBiohazard, LucideBrain, LucideSprout, LucideTrendingUp, LucideHeartCrack, LucideBicepsFlexed, LucidePlus, LucideOrbit, LucideChevronsUp, LucideBackpack, LucideScrollText, LucideTarget, LucideLock, LucideDownload, LucideSkull, LucideHourglass, LucideUndo2, LucideFilter, LucideLayers, LucideMenu } from 'lucide-react';
+import { LucideSword, LucideShield, LucideBookOpen, LucideX, LucideGhost, LucideHeart, LucideEye, LucideTrash2, LucideDroplets, LucideFlame, LucideSnowflake, LucideZap, LucideBiohazard, LucideBrain, LucideSprout, LucideTrendingUp, LucideHeartCrack, LucideBicepsFlexed, LucidePlus, LucideOrbit, LucideChevronsUp, LucideBackpack, LucideScrollText, LucideTarget, LucideLock, LucideDownload, LucideSkull, LucideHourglass, LucideUndo2, LucideFilter, LucideLayers, LucideMenu, LucideBot, LucideBug } from 'lucide-react';
 
 interface CombatViewProps {
   enemy: Enemy;
@@ -16,6 +16,7 @@ interface CombatViewProps {
   onOpenInventory: () => void;
   isGodMode: boolean;
   combatType?: 'NORMAL' | 'EXTRACTION';
+  currentMap?: string; // 新增：接收当前地图ID
 }
 
 // Visual Effect Type
@@ -78,7 +79,7 @@ const getBlueprintCategory = (bp: Blueprint): string => {
     return 'PHYSICAL';
 };
 
-export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, player, currentStage, maxStage, onWin, onLose, updatePlayer, onOpenInventory, isGodMode, combatType = 'NORMAL' }) => {
+export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, player, currentStage, maxStage, onWin, onLose, updatePlayer, onOpenInventory, isGodMode, combatType = 'NORMAL', currentMap }) => {
   const [enemy, setEnemy] = useState<Enemy>(initialEnemy);
   const [hand, setHand] = useState<HandCard[]>([]);
   const [buffer, setBuffer] = useState<CardType[]>([]);
@@ -135,12 +136,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
           onLose();
       }
     } else if (enemy.currentHp <= 0) {
-      onWin();
+        onWin(); // 战斗胜利后直接退出，奇遇留给下一环节判定
     } else if (combatType === 'EXTRACTION' && turn > 3) {
-        // Survival Win Condition
         onWin();
     }
-  }, [player.currentHp, enemy.currentHp, turn, combatType, isGodMode, player.activeSkill, player.level, player.charge]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.currentHp, enemy.currentHp, turn, combatType, isGodMode, player.activeSkill, player.level, player.charge, currentStage]);
   
   // Archive Modal State
   const [archiveCategory, setArchiveCategory] = useState<string>('ALL');
@@ -1121,63 +1122,76 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
      
      const stageBonus = Math.floor((currentStage - 1) * 0.5); 
      const turnBonus = Math.floor(turnCount / 3); 
+     const name = currentTurnEnemy.name;
 
-     // 1. 致命处决优先级最高 (当玩家血量不足 30% 时，35% 概率发起高伤害处决)
+     // 1. 隐藏 Boss 斩杀机制
+     if (name.includes('指挥官') && playerHpPct < 0.40 && Math.random() < 0.35) {
+         return { type: 'ATTACK', value: (6 + stageBonus) * 2, description: '双倍处决', turnsRemaining: 1 };
+     }
+
+     // 2. 通用致命处决 (玩家血量 < 30%)
      if (playerHpPct < 0.30 && Math.random() < 0.35) {
          return { type: 'ATTACK', value: 6 + stageBonus + turnBonus, description: '斩杀', turnsRemaining: 1 };
      }
 
-     // 2. 绝境求生防爆机制 (自身血量低于 30% 时，50%概率触发求生，防止无限加血当乌龟)
-     if (enemyHpPct < 0.30 && Math.random() < 0.50) {
-         if (Math.random() < 0.6) { 
-             return { type: 'HEAL', value: 5 + stageBonus + turnBonus, description: '紧急再生', turnsRemaining: 1 };
+     // 3. 绝境求生防爆 (自身<30%血)
+     if (enemyHpPct < 0.30 && Math.random() < 0.60) {
+         if (name.includes('医疗') || name.includes('母体') || name.includes('缝合怪')) {
+             return { type: 'HEAL', value: 8 + stageBonus, description: '紧急修复', turnsRemaining: 1 };
+         } else if (name.includes('守卫') || name.includes('机甲') || name.includes('巨像')) {
+             return { type: 'DEFEND', value: 15 + stageBonus * 2, description: '绝境防爆', turnsRemaining: 1 };
+         } else if (Math.random() < 0.5) {
+             return { type: 'HEAL', value: 5 + stageBonus, description: '再生', turnsRemaining: 1 };
          } else {
-             return { type: 'DEFEND', value: 8 + stageBonus * 2, description: '绝境壁垒', turnsRemaining: 1 };
+             return { type: 'DEFEND', value: 10 + stageBonus * 2, description: '绝境壁垒', turnsRemaining: 1 };
          }
      }
      
-     const roll = Math.random();
+     // 4. AI 触发词性格干预
+     let roll = Math.random();
+     let subRoll = Math.random();
      
-     // 3. 状态与战术博弈层 (前中期施加污染与状态，防无限堆叠)
+     if (name.includes('毒') || name.includes('腐蚀') || name.includes('感染') || name.includes('瘟疫') || name.includes('幼虫')) {
+         if (roll > 0.4) roll -= 0.3; // 强行拉高战术层概率
+         subRoll = 0.4; // 锁定 Debuff
+     } else if (name.includes('信徒') || name.includes('凝视者') || name.includes('吞噬者') || name.includes('看守者') || name.includes('拟态')) {
+         if (roll > 0.4) roll -= 0.3; 
+         subRoll = 0.1; // 锁定污染(POLLUTE)
+     } else if (name.includes('机甲') || name.includes('软泥') || name.includes('医疗机') || name.includes('暴徒') || name.includes('守卫')) {
+         roll += 0.2; // 喜欢进入普通技能层叠甲
+         subRoll = 0.8; // 锁定 Buff
+     } else if (name.includes('鼠') || name.includes('犬') || name.includes('兵') || name.includes('巨像')) {
+         roll += 0.4; // 几乎纯平A和重击
+     }
+
      if (turnCount > 1 && roll < 0.40) { 
-         const subRoll = Math.random();
          const enemyStr = currentTurnEnemy.statuses['STRENGTH'] || 0;
          const playerWeak = currentPlayer.statuses['WEAK'] || 0;
 
-         // 细分污染类型：15% 精神污染 (污染手牌), 15% 异化 (污染缓冲区)
          if (subRoll < 0.15) {
              return { type: 'POLLUTE', value: 0, description: '精神污染', turnsRemaining: 1 };
          } else if (subRoll < 0.30) {
              return { type: 'POLLUTE', value: 0, description: '异化', turnsRemaining: 1 };
-         } else if (subRoll < 0.60 && playerWeak < 3) { // 限制虚弱腐蚀无限叠加
+         } else if (subRoll < 0.60 && playerWeak < 3) { 
              return Math.random() > 0.5 
                 ? { type: 'DEBUFF', value: 0, description: '腐蚀', turnsRemaining: 1 }
                 : { type: 'DEBUFF', value: 0, description: '虚弱', turnsRemaining: 1 };
-         } else if (subRoll < 0.90 && enemyStr < 3) { // 限制狂暴硬化无限叠加
+         } else if (subRoll < 0.90 && enemyStr < 3) { 
              return Math.random() > 0.5
                 ? { type: 'BUFF', value: 2, description: '狂暴', turnsRemaining: 1 } 
                 : { type: 'BUFF', value: 2, description: '硬化', turnsRemaining: 1 }; 
          } else {
-             // 智能兜底：如果 Buff/Debuff 层数足够了，转化为直接突击
              return { type: 'ATTACK', value: 4 + stageBonus + turnBonus, description: '突击', turnsRemaining: 1 };
          }
      }
      
-     // 4. 常规行动判定
      const normalRoll = Math.random();
-     if (normalRoll < 0.5) {
-         return { type: 'ATTACK', value: 3 + stageBonus + turnBonus, description: '攻击', turnsRemaining: 1 };
-     } else if (normalRoll < 0.75) {
-         return { type: 'ATTACK', value: 5 + stageBonus + turnBonus, description: '重击', turnsRemaining: 2 };
-     } else if (normalRoll < 0.90) {
-         return { type: 'DEFEND', value: 5 + stageBonus * 2, description: '护甲强化', turnsRemaining: 1 };
-     } else {
-         // 智能治疗兜底判定：如果血量 > 85%，绝对不加血，转化为蓄势或防御
-         if (enemyHpPct > 0.85) {
-             return { type: 'BUFF', value: 1, description: '蓄势', turnsRemaining: 1 };
-         } else {
-             return { type: 'HEAL', value: 3 + stageBonus, description: '整顿', turnsRemaining: 1 };
-         }
+     if (normalRoll < 0.5) return { type: 'ATTACK', value: 3 + stageBonus + turnBonus, description: '攻击', turnsRemaining: 1 };
+     else if (normalRoll < 0.75) return { type: 'ATTACK', value: 5 + stageBonus + turnBonus, description: '重击', turnsRemaining: 2 };
+     else if (normalRoll < 0.90) return { type: 'DEFEND', value: 5 + stageBonus * 2, description: '护甲强化', turnsRemaining: 1 };
+     else {
+         if (enemyHpPct > 0.85) return { type: 'BUFF', value: 1, description: '蓄势', turnsRemaining: 1 };
+         else return { type: 'HEAL', value: 3 + stageBonus, description: '整顿', turnsRemaining: 1 };
      }
   };
 
@@ -1201,6 +1215,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                 sts['DOMAIN'] = 0; // Consumed
             }
 
+            // 新增：玩家中毒扣血逻辑
+            if ((sts['POISON'] || 0) > 0) {
+                const dmg = isGodMode ? 0 : sts['POISON'];
+                addLog(`>> 中毒伤害: -${dmg} HP`);
+                triggerVfx('TEXT', 50, 80, `-${dmg}`, 'text-lime-500', <LucideBiohazard size={20}/>);
+                hp = Math.max(0, hp - dmg);
+                // 生化地图：中毒层数保底为1，永远不会自然消失
+                sts['POISON'] = Math.max(currentMap === 'MAP-02' ? 1 : 0, sts['POISON'] - 1);
+            }
+
             if ((sts['CORROSION'] || 0) > 0) {
                 const dmg = isGodMode ? 0 : 2;
                 addLog(`>> 腐蚀伤害: -${dmg} HP`);
@@ -1208,11 +1232,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                 hp = Math.max(0, hp - dmg);
                 sts['CORROSION'] -= 1;
             }
-            if ((sts['WEAK'] || 0) > 0) sts['WEAK'] -= 1;
-        if ((sts['INVINCIBLE'] || 0) > 0) sts['INVINCIBLE'] -= 1;
+            
+            if ((sts['WEAK'] || 0) > 0) {
+                // 虚空地图：虚弱层数保底为1
+                sts['WEAK'] = Math.max(currentMap === 'MAP-03' ? 1 : 0, sts['WEAK'] - 1);
+            }
 
-        return { ...prev, currentHp: hp, statuses: sts };
-    });
+            if ((sts['INVINCIBLE'] || 0) > 0) sts['INVINCIBLE'] -= 1;
+
+            return { ...prev, currentHp: hp, statuses: sts };
+        });
 
         // Draw cards
         const bonusDraw = playerRef.current.statuses['DRAW_BONUS'] || 0;
@@ -1902,58 +1931,35 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   };
 
   const renderEnemyVisual = () => {
-     // Determine visuals based on intents and status
      const intent = enemy.intents[0];
      const isFrozen = (enemy.statuses['FROZEN'] || 0) > 0;
      
-     // 1. Resolve Base Monster Visuals (Shape, Background, Default Color)
+     // 1. 核心优化：智能匹配怪物 6 大视觉流派
      let baseVisual = {
          icon: <LucideGhost size={160} strokeWidth={1} />, 
          secondary: null as React.ReactNode,
-         bgGradient: 'from-stone-800/40 to-black',
-         baseColor: 'text-stone-400'
+         bgGradient: 'from-red-950/20 to-black',
+         baseColor: 'text-dungeon-red'
      };
 
-     if (enemy.name.includes('软泥')) {
-         baseVisual = {
-             icon: <LucideBiohazard size={160} strokeWidth={1} />,
-             secondary: <LucideDroplets size={60} className="absolute top-0 right-0 animate-bounce" />,
-             bgGradient: 'from-lime-900/30 to-black',
-             baseColor: 'text-lime-500'
-         };
-     } else if (enemy.name.includes('巡逻兵')) {
-         baseVisual = {
-             icon: <LucideSkull size={160} strokeWidth={1} />,
-             secondary: <LucideTarget size={60} className="absolute -top-4 -right-4 animate-pulse" />,
-             bgGradient: 'from-stone-700/30 to-black',
-             baseColor: 'text-stone-400'
-         };
-     } else if (enemy.name.includes('信徒')) {
-         baseVisual = {
-             icon: <LucideGhost size={160} strokeWidth={1} />,
-             secondary: <LucideEye size={60} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping opacity-50" />,
-             bgGradient: 'from-purple-900/30 to-black',
-             baseColor: 'text-purple-500'
-         };
-     } else if (enemy.name.includes('骑士')) {
-         baseVisual = {
-             icon: <LucideShield size={160} strokeWidth={1} />,
-             secondary: <LucideSword size={100} className="absolute top-[-20px] left-1/2 -translate-x-1/2 text-current opacity-80" />,
-             bgGradient: 'from-red-950/40 to-black',
-             baseColor: 'text-red-800'
-         };
-     } else if (enemy.name.includes('巨像')) {
-         baseVisual = {
-             icon: <LucideOrbit size={180} strokeWidth={0.5} />,
-             secondary: <LucideZap size={80} className="absolute bottom-0 right-0 animate-flicker" />,
-             bgGradient: 'from-amber-900/30 to-black',
-             baseColor: 'text-amber-500'
-         };
+     const name = enemy.name;
+     if (name.includes('指挥官')) {
+         baseVisual = { icon: <LucideSkull size={160} strokeWidth={1} />, secondary: <LucideOrbit size={60} className="absolute -top-4 -right-4 text-yellow-500 animate-spin-slow" />, bgGradient: 'from-yellow-950/30 to-black', baseColor: 'text-yellow-500' };
+     } else if (name.includes('毒') || name.includes('腐蚀') || name.includes('感染') || name.includes('瘟疫') || name.includes('幼虫') || name.includes('软泥') || name.includes('孢子')) {
+         baseVisual = { icon: <LucideBiohazard size={160} strokeWidth={1} />, secondary: <LucideDroplets size={60} className="absolute top-0 right-0 text-lime-500 animate-bounce" />, bgGradient: 'from-lime-900/30 to-black', baseColor: 'text-lime-500' };
+     } else if (name.includes('信徒') || name.includes('凝视者') || name.includes('吞噬者') || name.includes('看守者') || name.includes('拟态') || name.includes('术士') || name.includes('骇客')) {
+         baseVisual = { icon: <LucideEye size={160} strokeWidth={1} />, secondary: <LucideBrain size={60} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-fuchsia-500 animate-ping opacity-50" />, bgGradient: 'from-fuchsia-900/30 to-black', baseColor: 'text-fuchsia-500' };
+     } else if (name.includes('机甲') || name.includes('医疗机') || name.includes('守卫') || name.includes('巨像') || name.includes('暴君')) {
+         baseVisual = { icon: <LucideBot size={160} strokeWidth={1} />, secondary: <LucideZap size={60} className="absolute bottom-0 right-0 text-cyan-500 animate-pulse" />, bgGradient: 'from-cyan-900/30 to-black', baseColor: 'text-cyan-500' };
+     } else if (name.includes('兵') || name.includes('暴徒') || name.includes('老兵')) {
+         baseVisual = { icon: <LucideTarget size={160} strokeWidth={1} />, secondary: <LucideShield size={60} className="absolute -top-2 -left-2 text-stone-400 opacity-50" />, bgGradient: 'from-stone-700/30 to-black', baseColor: 'text-stone-400' };
+     } else if (name.includes('鼠') || name.includes('犬') || name.includes('巨口')) {
+         baseVisual = { icon: <LucideBug size={160} strokeWidth={1} />, secondary: <LucideSword size={60} className="absolute bottom-2 -right-4 text-amber-600 rotate-45 opacity-60" />, bgGradient: 'from-amber-900/30 to-black', baseColor: 'text-amber-500' };
      }
 
-     // 2. Resolve Dynamic Intent/Status Overrides
-     let dynamicColor = baseVisual.baseColor; // Default to base
-     let dynamicAnimation = 'animate-float'; // Default idle
+     // 2. 动态计算意图颜色与状态 (Dynamic Intent/Status Overrides)
+     let dynamicColor = baseVisual.baseColor;
+     let dynamicAnimation = 'animate-float';
      let dynamicShadow = ''; 
 
      if (isFrozen) {
@@ -1964,7 +1970,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
          switch (intent.type) {
              case 'ATTACK':
                  dynamicColor = 'text-red-500';
-                 dynamicAnimation = 'animate-breathing'; // A heavy breathing before attack
+                 dynamicAnimation = 'animate-breathing';
                  dynamicShadow = 'drop-shadow-[0_0_25px_rgba(239,68,68,0.6)]';
                  break;
              case 'POLLUTE':
@@ -1974,7 +1980,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                  break;
              case 'BUFF':
              case 'HEAL':
-                 // Keep distinct from Move/Tech cards, usually Green or Orange
                  if (intent.type === 'BUFF') dynamicColor = 'text-orange-500';
                  else dynamicColor = 'text-green-500';
                  dynamicAnimation = 'animate-bounce';
@@ -1985,7 +1990,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                  dynamicAnimation = 'animate-pulse';
                  break;
              case 'WAIT':
-                 // Keep base color or dim it
                  dynamicAnimation = 'animate-float';
                  break;
          }
@@ -1993,7 +1997,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
      return (
         <div 
-            key={`${enemy.name}-${currentStage}`} // CRITICAL: Forces React to replace the element instead of patching it, preventing style bleeding
+            key={`${enemy.name}-${currentStage}`}
             className={`relative w-72 h-72 flex items-center justify-center z-10 transition-transform duration-500 ${enemyLunge ? 'scale-110' : 'scale-100'}`}
         >
             {/* Background Aura (Based on Monster Type) */}
@@ -2004,7 +2008,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                 {/* Primary Icon */}
                 {baseVisual.icon}
                 
-                {/* Secondary Decor (inherits color usually, or we can force it) */}
+                {/* Secondary Decor */}
                 <div className="absolute inset-0 pointer-events-none opacity-80 mix-blend-screen">
                     {baseVisual.secondary}
                 </div>
@@ -2013,7 +2017,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
             {/* Frozen Overlay */}
             {isFrozen && <LucideSnowflake size={120} className="absolute z-30 text-cyan-100/50 animate-spin-slow" />}
 
-            {/* Intent Indicator (The Tethered Omen) */}
+            {/* Intent Indicator */}
             {enemy.intents.map((intent, idx) => {
                 if (!intent || (idx > 0 && !(player.passiveSkill?.id === 'oracle' && player.level >= 2))) return null;
                 
@@ -2023,19 +2027,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                     `}>
                         {idx === 1 && <div className="absolute -top-6 text-[10px] font-bold text-stone-400 tracking-widest whitespace-nowrap">未来视界</div>}
                         
-                        {/* Tether Line */}
                         <svg className="absolute top-1/2 right-full w-12 h-12 pointer-events-none opacity-30" viewBox="0 0 100 100">
                             <path d="M100,50 Q50,80 0,50" fill="none" stroke="currentColor" strokeWidth="1" className="text-stone-500" />
                         </svg>
 
-                        {/* Intent Rune Container */}
                         <div className={`
                             w-16 h-16 rounded-full border-2 bg-dungeon-black/90 flex items-center justify-center shadow-xl backdrop-blur-sm relative group
                             ${intent.type === 'ATTACK' ? 'border-dungeon-blood shadow-red-900/20' : 
                               intent.type === 'POLLUTE' ? 'border-fuchsia-800 shadow-fuchsia-900/20' : 
                               'border-stone-600 shadow-stone-900/20'}
                         `}>
-                            {/* Icon */}
                             <div className="relative z-10">
                                 {intent.type === 'ATTACK' ? <LucideSword size={28} className="text-dungeon-red animate-pulse"/> : 
                                  intent.type === 'POLLUTE' ? (
@@ -2050,14 +2051,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                                  <LucideOrbit size={28} className="text-stone-500 animate-spin-slow"/>}
                             </div>
 
-                            {/* Value Badge */}
                             {intent.value > 0 && (
                                 <div className="absolute -bottom-2 bg-black border border-stone-600 text-stone-200 text-xs font-bold font-display px-1.5 py-0.5 shadow-md">
                                     {intent.value}
                                 </div>
                             )}
                             
-                            {/* Tooltip */}
                             <div className="absolute top-full mt-2 w-max bg-black/90 border border-stone-800 text-stone-400 text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                                 <span className="font-bold text-stone-300 uppercase block text-center mb-0.5 tracking-widest">
                                     {INTENT_LABELS[intent.type]}
@@ -2074,15 +2073,31 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
 
   const isAnyDragging = dragCardIndex !== null;
 
+  // 核心优化：动态解析当前战区的全局环境色调和雾气特效
+  let mapAtmosphere = 'from-stone-800/30';
+  let mapFogClass = 'opacity-10 mix-blend-screen';
+  if (currentMap === 'MAP-02') { 
+      mapAtmosphere = 'from-lime-900/40'; 
+      mapFogClass = 'bg-lime-600/10 opacity-40 mix-blend-color-dodge'; 
+  } else if (currentMap === 'MAP-03') { 
+      mapAtmosphere = 'from-fuchsia-900/40'; 
+      mapFogClass = 'bg-fuchsia-600/10 opacity-30 mix-blend-color-dodge'; 
+  } else if (currentMap === 'MAP-04') { 
+      mapAtmosphere = 'from-red-900/40'; 
+      mapFogClass = 'bg-red-600/10 opacity-30 mix-blend-color-dodge'; 
+  }
+
+  const currentMapConfig = MAPS.find(m => m.id === currentMap) || MAPS[0];
+
   return (
     <div className="w-full h-full bg-[#1c1917] text-stone-300 relative overflow-hidden font-serif select-none">
       <div className={`w-full h-full flex flex-col relative z-10 ${shake ? 'animate-shake' : ''}`}>
           {/* Global Atmosphere */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-stone-800/30 via-stone-950/80 to-black pointer-events-none z-0"></div>
+          <div className={`absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] ${mapAtmosphere} via-stone-950/80 to-black pointer-events-none z-0 transition-colors duration-1000`}></div>
           <div className="absolute inset-0 pointer-events-none z-50 bg-[radial-gradient(circle,transparent_60%,rgba(0,0,0,0.6)_100%)]"></div>
           <div className="absolute inset-0 bg-noise opacity-[0.03] pointer-events-none z-0 animate-flicker"></div>
           {/* Fog Layer */}
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/foggy-birds.png')] opacity-10 animate-fog pointer-events-none z-0 mix-blend-screen"></div>
+          <div className={`absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/foggy-birds.png')] ${mapFogClass} animate-fog pointer-events-none z-0 transition-colors duration-1000`}></div>
 
           {screenFlash && <div className={`absolute inset-0 z-50 pointer-events-none transition-colors duration-300 ${screenFlash}`}></div>}
 
@@ -2153,20 +2168,27 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                            <div className="absolute top-12 -rotate-45 text-[9px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity bg-black px-1 border border-stone-800">当前回合</div>
                       </div>
                       
-                      {/* Depth/Stage Indicator */}
-                      <div className="flex gap-1.5">
-                          {Array.from({length: maxStage}).map((_, i) => {
-                              const num = i + 1;
-                              const isCompleted = num < currentStage;
-                              const isCurrent = num === currentStage;
-                              return (
-                                  <div key={i} className={`
-                                      h-2 w-2 rotate-45 border transition-all duration-500
-                                      ${isCurrent ? 'bg-dungeon-gold border-dungeon-gold scale-150 shadow-[0_0_10px_rgba(161,98,7,0.8)]' : 
-                                        isCompleted ? 'bg-stone-600 border-stone-500' : 'bg-stone-900 border-stone-700'}
-                                  `}></div>
-                              );
-                          })}
+                     {/* Depth/Stage Indicator */}
+                      <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-1.5">
+                              {Array.from({length: maxStage}).map((_, i) => {
+                                  const num = i + 1;
+                                  const isCompleted = num < currentStage;
+                                  const isCurrent = num === currentStage;
+                                  return (
+                                      <div key={i} className={`
+                                          h-2 w-2 rotate-45 border transition-all duration-500
+                                          ${isCurrent ? 'bg-dungeon-gold border-dungeon-gold scale-150 shadow-[0_0_10px_rgba(161,98,7,0.8)]' : 
+                                            isCompleted ? 'bg-stone-600 border-stone-500' : 'bg-stone-900 border-stone-700'}
+                                      `}></div>
+                                  );
+                              })}
+                              
+                              {/* 核心优化：高逼格地图专属标签 */}
+                              <span className={`ml-2 text-[9px] font-bold tracking-widest px-1.5 py-0.5 rounded border ${currentMapConfig.color} border-current/30 bg-black/50 shadow-inner uppercase`}>
+                                  {currentMapConfig.name}
+                              </span>
+                          </div>
                       </div>
                   </div>
 
