@@ -22,6 +22,7 @@ interface InventoryViewProps {
   playerLevel?: number; // 角色素体等级
   playerClass?: string; // 修复：接收职业类型，避免 undefined
   customPlayerHeader?: React.ReactNode; 
+  currentMap?: string; // 新增：接收地图ID用于战利品掉落计算
 }
 
 const CONTAINER_WIDTH = 8;
@@ -91,7 +92,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setMetaState,
     playerLevel = 1,
     playerClass = 'OPERATOR', // 给定安全默认值
-    customPlayerHeader
+    customPlayerHeader,
+    currentMap
 }) => {
   const [isBoxOpen, setIsBoxOpen] = useState(false);
   
@@ -241,9 +243,34 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       let currentGrid = createEmptyGrid(CONTAINER_WIDTH, CONTAINER_HEIGHT);
       const newItems: GridItem[] = [];
       const dropCount = Math.floor(Math.random() * 3) + 2; 
+      
+      const mapReqLevel = currentMap ? parseInt(currentMap.split('-')[1]) || 1 : 1;
+      
+      // 动态计算权重函数：所有物品均可掉落，但有越级惩罚和高难度加成
+      const getAdjustedWeight = (item: any, mapLvl: number) => {
+          let weight = item.dropWeight || 100;
+          const itemLvl = item.minMapReq || 1;
+          if (mapLvl < itemLvl) {
+              weight *= Math.pow(0.3, itemLvl - mapLvl); // 越级惩罚：每差1级，权重衰减至30%
+          } else {
+              if (item.rarity === 'LEGENDARY') weight *= (1 + (mapLvl - 1) * 0.4); // 高级图爆神装权重略微提升
+              else if (item.rarity === 'RARE') weight *= (1 + (mapLvl - 1) * 0.15);
+          }
+          return weight;
+      };
 
       for (let i = 0; i < dropCount; i++) {
-        const template = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
+        const totalWeight = LOOT_TABLE.reduce((sum: number, item: any) => sum + getAdjustedWeight(item, mapReqLevel), 0);
+        let rand = Math.random() * totalWeight;
+        let template = LOOT_TABLE[0];
+        for (const item of LOOT_TABLE) {
+            rand -= getAdjustedWeight(item, mapReqLevel);
+            if (rand <= 0) {
+                template = item;
+                break;
+            }
+        }
+        
         let placed = false;
         let attempts = 0;
         
@@ -284,9 +311,28 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLootPhase]);
 
-  // --- TEST BUTTON HANDLER ---
+ // --- TEST BUTTON HANDLER ---
   const handleAddTestLoot = () => {
-      const template = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
+      const mapReqLevel = currentMap ? parseInt(currentMap.split('-')[1]) || 1 : 4;
+      const getAdjustedWeight = (item: any, mapLvl: number) => {
+          let weight = item.dropWeight || 100;
+          const itemLvl = item.minMapReq || 1;
+          if (mapLvl < itemLvl) weight *= Math.pow(0.3, itemLvl - mapLvl);
+          else if (item.rarity === 'LEGENDARY') weight *= (1 + (mapLvl - 1) * 0.4);
+          else if (item.rarity === 'RARE') weight *= (1 + (mapLvl - 1) * 0.15);
+          return weight;
+      };
+
+      const totalWeight = LOOT_TABLE.reduce((sum: number, item: any) => sum + getAdjustedWeight(item, mapReqLevel), 0);
+      let rand = Math.random() * totalWeight;
+      let template = LOOT_TABLE[0];
+      for (const item of LOOT_TABLE) {
+          rand -= getAdjustedWeight(item, mapReqLevel);
+          if (rand <= 0) {
+              template = item;
+              break;
+          }
+      }
       const rows = template.shape.length;
       const cols = template.shape[0]?.length || 0;
       const rectShape = Array.from({ length: rows }, () => Array(cols).fill(1));
@@ -329,8 +375,27 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       }
   };
 
-  const handleAddTestItemToPlayer = () => {
-      const template = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
+ const handleAddTestItemToPlayer = () => {
+      const mapReqLevel = currentMap ? parseInt(currentMap.split('-')[1]) || 1 : 4; 
+      const getAdjustedWeight = (item: any, mapLvl: number) => {
+          let weight = item.dropWeight || 100;
+          const itemLvl = item.minMapReq || 1;
+          if (mapLvl < itemLvl) weight *= Math.pow(0.3, itemLvl - mapLvl);
+          else if (item.rarity === 'LEGENDARY') weight *= (1 + (mapLvl - 1) * 0.4);
+          else if (item.rarity === 'RARE') weight *= (1 + (mapLvl - 1) * 0.15);
+          return weight;
+      };
+
+      const totalWeight = LOOT_TABLE.reduce((sum: number, item: any) => sum + getAdjustedWeight(item, mapReqLevel), 0);
+      let rand = Math.random() * totalWeight;
+      let template = LOOT_TABLE[0];
+      for (const item of LOOT_TABLE) {
+          rand -= getAdjustedWeight(item, mapReqLevel);
+          if (rand <= 0) {
+              template = item;
+              break;
+          }
+      }
       const rows = template.shape.length;
       const cols = template.shape[0]?.length || 0;
       const rectShape = Array.from({ length: rows }, () => Array(cols).fill(1));

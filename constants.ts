@@ -435,85 +435,98 @@ export const ITEM_SHAPES = {
 };
 
 // Loot Table - Micro Stats
-export const LOOT_TABLE: Omit<GridItem, 'id' | 'x' | 'y' | 'rotation' | 'isIdentified'>[] = [
-  // --- CONSUMABLES ---
-  { 
-    name: '急救注射器', type: 'CONSUMABLE', rarity: 'COMMON', shape: ITEM_SHAPES.SINGLE, color: 'bg-red-700 border border-red-500', 
-    stats: { heal: 10 }, value: 150,
-    description: '消耗: 恢复 10 HP' 
-  },
-  { 
-    name: '肾上腺素', type: 'CONSUMABLE', rarity: 'RARE', shape: ITEM_SHAPES.LINE_2, color: 'bg-yellow-600 border border-yellow-400', 
-    stats: { heal: 2, damageBonus: 1 }, value: 800,
-    description: '消耗: +2HP, 且本局游戏所有攻击卡牌伤害 +1' 
-  },
-  { 
-    name: '神经镇静剂', type: 'CONSUMABLE', rarity: 'COMMON', shape: ITEM_SHAPES.SINGLE, color: 'bg-blue-600 border border-blue-400', 
-    stats: { cleanse: true }, value: 200,
-    description: '消耗: 清除所有负面状态 (Debuff)' 
-  },
+export const LOOT_TABLE: any[] = [
+    // ==========================================
+    // 类别一：换金物 (LOOT) - 29 种 (纯交易物品，博弈空间与价值)
+    // ==========================================
+    // 【MAP-01 级别垃圾】 
+    { id: 'l1', name: '废旧电路板', type: 'LOOT', rarity: 'COMMON', shape: [[1]], color: 'bg-stone-500 border border-stone-400', value: 300, description: '随处可见的电子垃圾。', dropWeight: 100, minMapReq: 1 },
+    { id: 'l2', name: '破损齿轮', type: 'LOOT', rarity: 'COMMON', shape: [[1]], color: 'bg-stone-500 border border-stone-400', value: 250, description: '生锈的金属件。', dropWeight: 100, minMapReq: 1 },
+    { id: 'l3', name: '脏污的铜线卷', type: 'LOOT', rarity: 'COMMON', shape: [[1,1]], color: 'bg-stone-600 border border-stone-500', value: 600, description: '可以提炼出少量贵金属。', dropWeight: 80, minMapReq: 1 },
+    { id: 'l4', name: '工业润滑油', type: 'LOOT', rarity: 'COMMON', shape: [[1],[1]], color: 'bg-stone-600 border border-stone-500', value: 500, description: '密封还算完好。', dropWeight: 80, minMapReq: 1 },
+    { id: 'l5', name: '异形骨架', type: 'LOOT', rarity: 'COMMON', shape: [[1,0,1],[1,1,1]], color: 'bg-stone-700 border border-stone-500', value: 1000, description: 'U型结构，占地方的普通生物样本。', dropWeight: 80, minMapReq: 1 }, // 吸收旧代码并重构体积与价格
+    { id: 'l6', name: '废弃显示器', type: 'LOOT', rarity: 'COMMON', shape: [[1,1],[1,1]], color: 'bg-stone-700 border border-stone-600', value: 1200, description: '极其笨重，只能卖个玻璃和稀土的钱。', dropWeight: 70, minMapReq: 1 },
+    { id: 'l7', name: '检修工具箱', type: 'LOOT', rarity: 'COMMON', shape: [[1,1,1]], color: 'bg-stone-700 border border-stone-600', value: 1500, description: '长条形的沉重铁箱。', dropWeight: 60, minMapReq: 1 },
+    { id: 'l8', name: '过滤面罩滤芯', type: 'LOOT', rarity: 'RARE', shape: [[1]], color: 'bg-blue-500 border border-blue-400', value: 1500, description: '未开封的滤芯，黑市抢手货。', dropWeight: 40, minMapReq: 1 },
+    
+    // 【MAP-02 级别物资】 
+    { id: 'l9', name: '损坏的逻辑核心', type: 'LOOT', rarity: 'RARE', shape: [[1,1,1],[0,1,0]], color: 'bg-cyan-800 border border-cyan-400', value: 5000, description: 'T型结构。可以兑换不少算力。', dropWeight: 50, minMapReq: 2 }, // 吸收旧代码
+    { id: 'l10', name: '高密度电池', type: 'LOOT', rarity: 'RARE', shape: [[1],[1]], color: 'bg-blue-600 border border-blue-500', value: 3000, description: '仍有余电的危险品。', dropWeight: 50, minMapReq: 2 },
+    { id: 'l11', name: '提纯化学溶剂', type: 'LOOT', rarity: 'RARE', shape: [[1,1]], color: 'bg-blue-600 border border-blue-500', value: 3200, description: '摇晃时会发光的绿色液体。', dropWeight: 50, minMapReq: 2 },
+    { id: 'l12', name: '军用通讯电台', type: 'LOOT', rarity: 'RARE', shape: [[1,1],[1,1]], color: 'bg-blue-700 border border-blue-500', value: 5000, description: '可以破解出加密频道。', dropWeight: 40, minMapReq: 2 },
+    { id: 'l13', name: '损毁的机械臂', type: 'LOOT', rarity: 'RARE', shape: [[1,0],[1,1]], color: 'bg-blue-700 border border-blue-500', value: 4500, description: 'L型的沉重部件，很难塞进背包。', dropWeight: 40, minMapReq: 2 },
+    { id: 'l14', name: '光学瞄准镜', type: 'LOOT', rarity: 'RARE', shape: [[1,1,1]], color: 'bg-blue-800 border border-blue-600', value: 6000, description: '精密的光学仪器。', dropWeight: 30, minMapReq: 2 },
+    { id: 'l15', name: '变异真菌样本', type: 'LOOT', rarity: 'RARE', shape: [[1]], color: 'bg-blue-500 border border-blue-400', value: 2500, description: '装在培养皿里的活跃真菌。', dropWeight: 40, minMapReq: 2 },
+    
+    // 【MAP-03 级别稀有物】 
+    { id: 'l16', name: '沉重的黄金', type: 'LOOT', rarity: 'RARE', shape: [[1,1,1],[1,1,1],[1,1,1]], color: 'bg-yellow-700 border border-yellow-500', value: 18000, description: '3x3的方块，极其沉重，但能大赚一笔。', dropWeight: 20, minMapReq: 3 }, // 吸收旧代码，调高价格适配3x3
+    { id: 'l17', name: '未加密的数据盘', type: 'LOOT', rarity: 'RARE', shape: [[1]], color: 'bg-blue-400 border border-blue-300', value: 4000, description: '不知道里面装着谁的秘密。', dropWeight: 30, minMapReq: 3 },
+    { id: 'l18', name: '浓缩神经毒素', type: 'LOOT', rarity: 'RARE', shape: [[1],[1]], color: 'bg-blue-600 border border-blue-500', value: 5500, description: '一滴就能致死的非法违禁品。', dropWeight: 30, minMapReq: 3 },
+    { id: 'l19', name: '异化生物脏器', type: 'LOOT', rarity: 'RARE', shape: [[1,1],[1,1]], color: 'bg-blue-700 border border-blue-500', value: 8000, description: '还在微微跳动的肉块。', dropWeight: 25, minMapReq: 3 },
+    { id: 'l20', name: '虚空结晶矿', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-yellow-500 border border-yellow-400', value: 12000, description: '纯粹的能量凝结，单格天价。', dropWeight: 15, minMapReq: 3 },
+    { id: 'l21', name: '实验性武器骨架', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,1,1],[0,1,0]], color: 'bg-yellow-600 border border-yellow-500', value: 25000, description: 'T型结构，极其占用背包。', dropWeight: 15, minMapReq: 3 },
+    { id: 'l22', name: '加密军方终端', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,1],[1,1],[1,1]], color: 'bg-yellow-700 border border-yellow-500', value: 35000, description: '2x3的庞然大物，但价值连城。', dropWeight: 10, minMapReq: 3 },
+    
+    // 【MAP-04 终极战区神物】 
+    { id: 'l23', name: '古神之眼', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,1],[1,1]], color: 'bg-yellow-300 border border-yellow-100', value: 48000, description: '2x2形状。凝视它时，它也在凝视你。', dropWeight: 8, minMapReq: 4 }, // 吸收旧代码，价格飙升
+    { id: 'l24', name: '欧米伽机密硬盘', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,1]], color: 'bg-yellow-400 border border-yellow-300', value: 30000, description: '高维文明的算力结晶。', dropWeight: 10, minMapReq: 4 },
+    { id: 'l25', name: '记忆重塑胶囊', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-yellow-300 border border-yellow-200', value: 25000, description: '可以改写他人记忆的禁忌之物。', dropWeight: 8, minMapReq: 4 },
+    { id: 'l26', name: '反物质引擎核心', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,1],[1,1]], color: 'bg-yellow-500 border border-yellow-400', value: 60000, description: '足以买下一座地下城的极品。', dropWeight: 5, minMapReq: 4 },
+    { id: 'l27', name: '黄金遗物雕像', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,1,0],[0,1,1]], color: 'bg-yellow-600 border border-yellow-400', value: 50000, description: 'Z型畸形物品，极度考验你的背包管理。', dropWeight: 5, minMapReq: 4 },
+    { id: 'l28', name: '星轨引导器', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1,0],[1,0],[1,1]], color: 'bg-yellow-700 border border-yellow-500', value: 75000, description: '巨大的L型精密仪器。', dropWeight: 3, minMapReq: 4 },
+    { id: 'l29', name: '绝密特工名单(红卡)', type: 'LOOT', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-red-500 border border-red-300', value: 100000, description: '全深渊单格价值最高的神话级物品。', dropWeight: 1, minMapReq: 4 },
 
-  // --- ARTIFACTS (COMMON) ---
-  { 
-    name: '磨刀石', type: 'ARTIFACT', rarity: 'COMMON', shape: ITEM_SHAPES.SINGLE, color: 'bg-stone-500 border border-stone-400', 
-    stats: { damageBonus: 1 }, value: 300,
-    description: '被动: 所有攻击卡牌伤害 +1' 
-  },
-  { 
-    name: '碳纤维板', type: 'ARTIFACT', rarity: 'COMMON', shape: ITEM_SHAPES.SINGLE, color: 'bg-stone-600 border border-stone-400', 
-    stats: { shieldStart: 3 }, value: 250,
-    description: '被动: 战斗开始时获得 3 点护甲' 
-  },
-  { 
-    name: '重型盾徽', type: 'ARTIFACT', rarity: 'COMMON', shape: ITEM_SHAPES.SINGLE, color: 'bg-blue-700 border border-blue-500', 
-    stats: { shieldBonus: 1 }, value: 350,
-    description: '被动: 护甲效能 +1 (所有护甲卡数值+1)' 
-  },
+    // ==========================================
+    // 类别二：消耗品 (CONSUMABLE) - 13 种
+    // ==========================================
+    { id: 'c1', name: '急救注射器', type: 'CONSUMABLE', rarity: 'COMMON', shape: [[1]], color: 'bg-red-700 border border-red-500', value: 250, description: '【恢复系 T1】单格便携，恢复 15 点生命值。', dropWeight: 90, minMapReq: 1, stats: { heal: 15 } },
+    { id: 'c2', name: '粗制绷带', type: 'CONSUMABLE', rarity: 'COMMON', shape: [[1,1]], color: 'bg-green-700 border border-green-500', value: 200, description: '【恢复系 T1】占2格，恢复 10 点生命值。', dropWeight: 80, minMapReq: 1, stats: { heal: 10 } },
+    { id: 'c3', name: '神经镇静剂', type: 'CONSUMABLE', rarity: 'COMMON', shape: [[1],[1]], color: 'bg-blue-600 border border-blue-400', value: 500, description: '【净化系 T1】占用2格。清除所有负面状态。', dropWeight: 70, minMapReq: 1, stats: { cleanse: true } },
+    { id: 'c4', name: '劣质净水片', type: 'CONSUMABLE', rarity: 'COMMON', shape: [[1]], color: 'bg-teal-700 border border-teal-500', value: 300, description: '【净化系 T1】清除异常，但因杂质扣除 5 点生命。', dropWeight: 70, minMapReq: 1, stats: { heal: -5, cleanse: true } },
+    
+    { id: 'c5', name: '军用急救包', type: 'CONSUMABLE', rarity: 'RARE', shape: [[1,1],[1,1]], color: 'bg-green-500 border border-green-400', value: 1500, description: '【恢复系 T2】占用4格。恢复 40 点生命值。', dropWeight: 40, minMapReq: 2, stats: { heal: 40 } },
+    { id: 'c6', name: '肾上腺素', type: 'CONSUMABLE', rarity: 'RARE', shape: [[1,1]], color: 'bg-orange-600 border border-orange-400', value: 2500, description: '【战术系 T2】+20HP，且本局伤害永久 +1。', dropWeight: 35, minMapReq: 2, stats: { heal: 20, damageBonus: 1 } },
+    { id: 'c7', name: '抗辐射血清', type: 'CONSUMABLE', rarity: 'RARE', shape: [[1]], color: 'bg-teal-500 border border-teal-400', value: 2000, description: '【净化系 T2】清除所有异常状态，并恢复 20 点生命。', dropWeight: 30, minMapReq: 2, stats: { heal: 20, cleanse: true } },
+    { id: 'c8', name: '浓缩狂暴制剂', type: 'CONSUMABLE', rarity: 'RARE', shape: [[1]], color: 'bg-orange-500 border border-orange-400', value: 3000, description: '【战术系 T2】本局内永久增加 1 伤害和 5 初始护甲。', dropWeight: 20, minMapReq: 2, stats: { damageBonus: 1, shieldStart: 5 } },
+    
+    { id: 'c9', name: '纳米修复凝胶', type: 'CONSUMABLE', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-green-400 border border-green-300', value: 5000, description: '【恢复系 T3】高新科技压缩至1格。恢复 80 点生命值！', dropWeight: 10, minMapReq: 3, stats: { heal: 80 } },
+    { id: 'c10', name: '深渊共生体针剂', type: 'CONSUMABLE', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-red-600 border border-red-400', value: 12000, description: '【战术系 T3】本局伤害永久+2，但使用扣除 15 血！', dropWeight: 5, minMapReq: 4, stats: { damageBonus: 2, heal: -15 } },
+    { id: 'c11', name: '虚空提取液', type: 'CONSUMABLE', rarity: 'LEGENDARY', shape: [[1],[1]], color: 'bg-teal-300 border border-teal-200', value: 10000, description: '【净化系 T3】完全净化，并将生命值恢复至满状态。', dropWeight: 8, minMapReq: 3, stats: { heal: 999, cleanse: true } },
+    { id: 'c12', name: '欧米伽“神迹”注射器', type: 'CONSUMABLE', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-yellow-400 border border-yellow-200', value: 25000, description: '【究极消耗】满血、净化、全属性(伤+2, 甲+10)提升！', dropWeight: 2, minMapReq: 4, stats: { heal: 999, cleanse: true, damageBonus: 2, shieldStart: 10 } },
 
-  // --- ARTIFACTS (RARE) ---
-  { 
-    name: '锈蚀大剑', type: 'ARTIFACT', rarity: 'RARE', shape: ITEM_SHAPES.LINE_4, color: 'bg-orange-800 border border-orange-600', 
-    stats: { damageBonus: 2 }, value: 1200,
-    description: '被动: 所有攻击卡牌伤害 +2' 
-  }, 
-  { 
-    name: '力场发生器', type: 'ARTIFACT', rarity: 'RARE', shape: ITEM_SHAPES.SQUARE_2x2, color: 'bg-blue-800 border border-cyan-500', 
-    stats: { shieldStart: 5, shieldBonus: 2 }, value: 1500,
-    description: '被动: 战始+5护甲, 护甲效能 +2' 
-  },
-  {
-    name: '反应装甲', type: 'ARTIFACT', rarity: 'RARE', shape: ITEM_SHAPES.Z_SHAPE, color: 'bg-red-800 border border-red-500',
-    stats: { thorns: 2 }, value: 1100,
-    description: '被动: 荆棘+2 (受到攻击时反弹 2 点伤害)'
-  },
-  {
-    name: '狂战士义眼', type: 'ARTIFACT', rarity: 'RARE', shape: ITEM_SHAPES.LINE_2, color: 'bg-red-600 border border-red-400',
-    stats: { damageBonus: 2, hpBonus: -8 }, value: 1800,
-    description: '被动: 攻击卡伤害 +2, 但生命上限 -8 (玻璃大炮)'
-  },
-
-  // --- ARTIFACTS (LEGENDARY) ---
-  { 
-    name: '刺客护符', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: ITEM_SHAPES.L_SHAPE, color: 'bg-purple-800 border border-purple-500', 
-    stats: { damageBonus: 1, hpBonus: 5 }, value: 5000,
-    description: '被动: 攻击卡伤害+1, 生命上限+5' 
-  },
-  {
-    name: '黑曜石方尖碑', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: ITEM_SHAPES.T_SHAPE, color: 'bg-black border border-stone-600',
-    stats: { shieldStart: 15 }, value: 6500,
-    description: '被动: 战斗开始时获得 15 点巨额护甲'
-  },
-  {
-    name: '虚空之心', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: ITEM_SHAPES.CROSS, color: 'bg-purple-950 border border-purple-600',
-    stats: { damageBonus: 3, shieldBonus: 2, hpBonus: -10 }, value: 8000,
-    description: '被动: 攻击+3, 护甲效能+2, 但生命上限 -10'
-  },
-
-  // --- TRASH/LOOT ---
-  { name: '古神之眼', type: 'LOOT', rarity: 'LEGENDARY', shape: ITEM_SHAPES.SQUARE_2x2, color: 'bg-dungeon-gold border border-yellow-200', stats: {}, value: 10000, description: '撤离: 高价值遗物' },
-  { name: '损坏的逻辑核心', type: 'LOOT', rarity: 'RARE', shape: ITEM_SHAPES.T_SHAPE, color: 'bg-cyan-800 border border-cyan-400', stats: {}, value: 2000, description: '撤离: 兑换算力' },
-  { name: '沉重的黄金', type: 'LOOT', rarity: 'RARE', shape: ITEM_SHAPES.BOX_3x3, color: 'bg-yellow-700 border border-yellow-500', stats: {}, value: 3500, description: '撤离: 极高价值，极其沉重' },
-  { name: '异形骨架', type: 'LOOT', rarity: 'COMMON', shape: ITEM_SHAPES.U_SHAPE, color: 'bg-stone-700 border border-stone-500', stats: {}, value: 450, description: '撤离: 普通的生物样本' },
+    // ==========================================
+    // 类别三：战备遗物 (ARTIFACT) - 25 种
+    // ==========================================
+    // 【COMMON级被动】
+    { id: 'a1', name: '磨刀石', type: 'ARTIFACT', rarity: 'COMMON', shape: [[1,1]], color: 'bg-stone-500 border border-stone-400', value: 1000, description: '战备区生效：伤害 +1。', dropWeight: 30, minMapReq: 1, stats: { damageBonus: 1 } },
+    { id: 'a2', name: '碳纤维板', type: 'ARTIFACT', rarity: 'COMMON', shape: [[1],[1]], color: 'bg-stone-600 border border-stone-400', value: 900, description: '战备区生效：开局获得 2 护甲。', dropWeight: 40, minMapReq: 1, stats: { shieldStart: 2 } },
+    { id: 'a3', name: '重型盾徽', type: 'ARTIFACT', rarity: 'COMMON', shape: [[1,1],[1,1]], color: 'bg-blue-700 border border-blue-500', value: 1500, description: '占用4格。战备区生效：护甲效能 +1。', dropWeight: 30, minMapReq: 1, stats: { shieldBonus: 1 } },
+    { id: 'a4', name: '拾荒者护目镜', type: 'ARTIFACT', rarity: 'COMMON', shape: [[1,1]], color: 'bg-stone-300 border border-stone-200', value: 800, description: '战备区生效：最大生命值 +5。', dropWeight: 60, minMapReq: 1, stats: { hpBonus: 5 } },
+    { id: 'a5', name: '破旧防弹衣', type: 'ARTIFACT', rarity: 'COMMON', shape: [[1,1],[1,1]], color: 'bg-stone-400 border border-stone-300', value: 1200, description: '战备区生效：开局获得 3 护甲。', dropWeight: 50, minMapReq: 1, stats: { shieldStart: 3 } },
+    { id: 'a6', name: '简易外骨骼', type: 'ARTIFACT', rarity: 'COMMON', shape: [[1,0],[1,1]], color: 'bg-stone-500 border border-stone-400', value: 1500, description: 'L型。战备区生效：最大生命值 +10。', dropWeight: 40, minMapReq: 1, stats: { hpBonus: 10 } },
+    
+    // 【RARE级被动】
+    { id: 'a7', name: '锈蚀大剑', type: 'ARTIFACT', rarity: 'RARE', shape: [[1],[1],[1],[1]], color: 'bg-orange-800 border border-orange-600', value: 4500, description: '1x4长条形。战备区生效：伤害 +2。', dropWeight: 20, minMapReq: 2, stats: { damageBonus: 2 } },
+    { id: 'a8', name: '力场发生器', type: 'ARTIFACT', rarity: 'RARE', shape: [[1,1],[1,1]], color: 'bg-blue-800 border border-cyan-500', value: 8000, description: '战备区生效：开局+5护甲, 护甲效能 +2。', dropWeight: 15, minMapReq: 2, stats: { shieldStart: 5, shieldBonus: 2 } },
+    { id: 'a9', name: '反应装甲', type: 'ARTIFACT', rarity: 'RARE', shape: [[1,1,0],[0,1,1]], color: 'bg-red-800 border border-red-500', value: 7500, description: 'Z型。战备区生效：获得 2 层反伤。', dropWeight: 18, minMapReq: 2, stats: { thorns: 2 } },
+    { id: 'a10', name: '狂战士义眼', type: 'ARTIFACT', rarity: 'RARE', shape: [[1]], color: 'bg-red-600 border border-red-400', value: 8000, description: '1x1神仙体积。战备区生效：伤害+2, 但生命上限-8。', dropWeight: 15, minMapReq: 2, stats: { damageBonus: 2, hpBonus: -8 } },
+    { id: 'a11', name: '警用防暴盾', type: 'ARTIFACT', rarity: 'RARE', shape: [[1,1],[1,1],[1,1]], color: 'bg-blue-300 border border-blue-200', value: 4500, description: '2x3极其笨重。战备区生效：开局+10 护甲。', dropWeight: 30, minMapReq: 2, stats: { shieldStart: 10 } },
+    { id: 'a12', name: '充能战术手套', type: 'ARTIFACT', rarity: 'RARE', shape: [[1,1]], color: 'bg-blue-400 border border-blue-300', value: 6000, description: '战备区生效：伤害 +1。', dropWeight: 25, minMapReq: 2, stats: { damageBonus: 1 } },
+    { id: 'a13', name: '动力腿部装甲', type: 'ARTIFACT', rarity: 'RARE', shape: [[1,1],[1,0],[1,0]], color: 'bg-blue-500 border border-blue-400', value: 5000, description: '巨大的L型。战备区生效：最大生命值 +20。', dropWeight: 25, minMapReq: 2, stats: { hpBonus: 20 } },
+    { id: 'a14', name: '毒素过滤囊', type: 'ARTIFACT', rarity: 'RARE', shape: [[1]], color: 'bg-lime-500 border border-lime-400', value: 8000, description: '单格装。战备区生效：生命+5，自带 1 层反伤。', dropWeight: 20, minMapReq: 2, stats: { hpBonus: 5, thorns: 1 } },
+    { id: 'a15', name: '虚空折跃发生器', type: 'ARTIFACT', rarity: 'RARE', shape: [[1,1,1]], color: 'bg-fuchsia-500 border border-fuchsia-400', value: 9000, description: '战备区生效：生命上限 -5，但伤害 +2！', dropWeight: 15, minMapReq: 3, stats: { hpBonus: -5, damageBonus: 2 } },
+    
+    // 【LEGENDARY级神装】
+    { id: 'a16', name: '刺客护符', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,0],[1,1]], color: 'bg-purple-800 border border-purple-500', value: 35000, description: '小型L结构。战备区生效：伤害+1, 生命上限+5。', dropWeight: 10, minMapReq: 3, stats: { damageBonus: 1, hpBonus: 5 } },
+    { id: 'a17', name: '黑曜石方尖碑', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,1,1],[0,1,0]], color: 'bg-black border border-stone-600', value: 45000, description: 'T型巨石。战备区生效：战斗开始时获得 15 点护甲。', dropWeight: 8, minMapReq: 3, stats: { shieldStart: 15 } },
+    { id: 'a18', name: '虚空之心', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[0,1,0],[1,1,1],[0,1,0]], color: 'bg-purple-950 border border-purple-600', value: 85000, description: '十字形。战备区生效：攻击+3, 护甲效能+2, 但血上限-10。', dropWeight: 4, minMapReq: 4, stats: { damageBonus: 3, shieldBonus: 2, hpBonus: -10 } },
+    { id: 'a19', name: '反应装甲背心', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,1,1],[1,0,1]], color: 'bg-yellow-300 border border-yellow-200', value: 18000, description: 'U型结构。战备区生效：开局 15 护甲，1 反伤。', dropWeight: 10, minMapReq: 3, stats: { shieldStart: 15, thorns: 1 } },
+    { id: 'a20', name: '嗜血反伤装甲', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,1,1],[1,1,1]], color: 'bg-red-500 border border-red-400', value: 25000, description: '占据6格。战备区生效：生命+15，自带 3 层反伤！', dropWeight: 8, minMapReq: 3, stats: { hpBonus: 15, thorns: 3 } },
+    { id: 'a21', name: '活体共生组织', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[0,1,0],[1,1,1],[0,1,0]], color: 'bg-lime-400 border border-lime-300', value: 35000, description: '十字形结构。战备区生效：生命+35！', dropWeight: 6, minMapReq: 4, stats: { hpBonus: 35 } },
+    { id: 'a22', name: '欧米伽力场发生器', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,1],[1,1]], color: 'bg-cyan-400 border border-cyan-300', value: 40000, description: '战备区生效：开局自带 30 护甲。', dropWeight: 5, minMapReq: 4, stats: { shieldStart: 30 } },
+    { id: 'a23', name: '暴君核心', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,1,1],[0,1,0]], color: 'bg-orange-500 border border-orange-400', value: 55000, description: '战备区生效：伤害+2，开局护甲+15。', dropWeight: 3, minMapReq: 4, stats: { damageBonus: 2, shieldStart: 15 } },
+    { id: 'a24', name: '遗忘者王冠', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1,0,1],[1,1,1]], color: 'bg-yellow-600 border border-yellow-500', value: 65000, description: 'U型。战备区生效：伤+1,血+15,盾+10,反伤+1。', dropWeight: 2, minMapReq: 4, stats: { damageBonus: 1, hpBonus: 15, shieldStart: 10, thorns: 1 } },
+    { id: 'a25', name: '神经直连芯片(神话)', type: 'ARTIFACT', rarity: 'LEGENDARY', shape: [[1]], color: 'bg-yellow-200 border border-white', value: 120000, description: '极小体积，无穷威力。放在战备区：伤害+3！', dropWeight: 1, minMapReq: 4, stats: { damageBonus: 3 } },
 ];
 
 export const MAX_BUFFER_SIZE = 5;

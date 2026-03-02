@@ -682,6 +682,7 @@ export default function App() {
           maxStage={STAGES_PER_DEPTH}
           playerClass={activeChar.class} // 核心修复：保证战利品整理时的背包形状一致
           playerLevel={activeChar.level} // 核心修复：保证保险区高亮显示
+          currentMap={currentMap} // 传递地图环境，应用掉落权重和准入要求
         />
       )}
 
