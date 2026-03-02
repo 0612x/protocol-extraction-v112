@@ -223,6 +223,20 @@ export default function App() {
 
         const totalValue = safeItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
 
+        const oldLevel = activeChar.level;
+        const oldExp = activeChar.exp;
+        let newExp = isCommander ? 0 : oldExp + player.pendingExp;
+        let newLevel = oldLevel;
+        let newMaxHp = activeChar.stats.maxHp;
+        
+        // 核心优化：即便战斗失败，只要获得了经验，也要正常判定升级
+        if (!isCommander) {
+            while (newLevel < 5 && newExp >= EXP_THRESHOLDS[newLevel]) {
+                newLevel++;
+                newMaxHp += 5;
+            }
+        }
+
         setMetaState(prev => {
             const newRoster = prev.roster.map(c => {
                 if (c.id === activeCharId) {
@@ -231,20 +245,13 @@ export default function App() {
                         const itemForPlacement = { ...i, rotation: 0 as const };
                         newGrid = placeItemInGrid(newGrid, itemForPlacement, i.x, i.y);
                     });
-                    
-                    let newExp = c.exp + player.pendingExp;
-                    let newLevel = c.level;
-                    let newMaxHp = c.stats.maxHp;
-
-                    // 修复：指挥官永远不参与升级；素体战斗失败即阵亡，也无需升级。
-                    // 直接删除了导致指挥官异常加血的升级判定循环。
 
                     return {
                         ...c,
-                        level: isCommander ? 0 : newLevel,
-                        exp: isCommander ? 0 : newExp,
+                        level: newLevel,
+                        exp: newExp,
                         status: isCommander ? 'ALIVE' : 'DEAD', 
-                        stats: { ...c.stats, level: isCommander ? 0 : newLevel, maxHp: newMaxHp, currentHp: isCommander ? newMaxHp : 0 },
+                        stats: { ...c.stats, level: newLevel, maxHp: newMaxHp, currentHp: isCommander ? newMaxHp : 0 },
                         inventory: { ...c.inventory, items: safeItems, grid: newGrid }
                     };
                 }
@@ -253,7 +260,11 @@ export default function App() {
             return { ...prev, roster: newRoster };
         });
 
-        setRunResult({ outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander, expGained: player.pendingExp });
+        // 打包等级与经验数据用于过场动画
+        setRunResult({ 
+            outcome: 'DEFEAT', extractedItems: safeItems, lostItems, totalValue, isCommander, 
+            expGained: player.pendingExp, oldLevel, oldExp, newLevel, newExp, charName: activeChar.name 
+        });
         setPhase('SETTLEMENT');
         setAppTransition('NONE'); // 状态重置，切入 SettlementView
     }, 2500);
@@ -266,6 +277,20 @@ export default function App() {
         const allItems = inventory.items;
         const totalValue = allItems.reduce((acc, item) => acc + (item.value || 0) * (item.quantity || 1), 0);
         const activeChar = metaState.roster.find(c => c.id === activeCharId) || metaState.roster[0];
+        const isCommander = activeChar.class === 'COMMANDER';
+
+        const oldLevel = activeChar.level;
+        const oldExp = activeChar.exp;
+        let newExp = isCommander ? 0 : oldExp + player.pendingExp;
+        let newLevel = oldLevel;
+        let newMaxHp = activeChar.stats.maxHp;
+        
+        if (!isCommander) {
+            while (newLevel < 5 && newExp >= EXP_THRESHOLDS[newLevel]) {
+                newLevel++;
+                newMaxHp += 5;
+            }
+        }
 
        setMetaState(prev => {
             const newRoster = prev.roster.map(c => {
@@ -276,20 +301,10 @@ export default function App() {
                         newGrid = placeItemInGrid(newGrid, itemForPlacement, item.x, item.y);
                     });
 
-                    let newExp = c.exp + player.pendingExp;
-                    let newLevel = c.level;
-                    let newMaxHp = c.stats.maxHp;
-                    if (c.class !== 'COMMANDER') {
-                        while (newLevel < 5 && newExp >= EXP_THRESHOLDS[newLevel]) {
-                            newLevel++;
-                            newMaxHp += 5;
-                        }
-                    }
-
                     return { 
                         ...c, 
-                        level: c.class === 'COMMANDER' ? 0 : newLevel,
-                        exp: c.class === 'COMMANDER' ? 0 : newExp,
+                        level: newLevel,
+                        exp: newExp,
                         stats: { ...c.stats, level: newLevel, maxHp: newMaxHp },
                         inventory: { ...c.inventory, items: allItems, grid: newGrid } 
                     };
@@ -299,7 +314,10 @@ export default function App() {
             return { ...prev, roster: newRoster };
         });
         
-        setRunResult({ outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander: activeChar.class === 'COMMANDER', expGained: player.pendingExp });
+        setRunResult({ 
+            outcome: 'VICTORY', extractedItems: allItems, lostItems: [], totalValue, isCommander, 
+            expGained: player.pendingExp, oldLevel, oldExp, newLevel, newExp, charName: activeChar.name 
+        });
         setPhase('SETTLEMENT');
         setAppTransition('NONE');
     }, 2500);
@@ -681,6 +699,12 @@ export default function App() {
             lostItems={runResult.lostItems}
             totalValue={runResult.totalValue}
             isCommander={runResult.isCommander}
+            expGained={runResult.expGained}
+            oldLevel={runResult.oldLevel}
+            oldExp={runResult.oldExp}
+            newLevel={runResult.newLevel}
+            newExp={runResult.newExp}
+            charName={runResult.charName}
             onConfirm={() => {
                 setRunResult(null);
                 setPhase('BASE_CAMP');
