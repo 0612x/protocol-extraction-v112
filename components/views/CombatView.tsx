@@ -1122,42 +1122,62 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
      const stageBonus = Math.floor((currentStage - 1) * 0.5); 
      const turnBonus = Math.floor(turnCount / 3); 
 
-     if (enemyHpPct < 0.25) {
-         return Math.random() < 0.5 
-            ? { type: 'HEAL', value: 4 + stageBonus, description: '再生', turnsRemaining: 1 } 
-            : { type: 'ATTACK', value: 5 + stageBonus + turnBonus, description: '绝境反击', turnsRemaining: 1 };
+     // 1. 致命处决优先级最高 (当玩家血量不足 30% 时，35% 概率发起高伤害处决)
+     if (playerHpPct < 0.30 && Math.random() < 0.35) {
+         return { type: 'ATTACK', value: 6 + stageBonus + turnBonus, description: '斩杀', turnsRemaining: 1 };
      }
 
-     if (playerHpPct < 0.20) {
-         return { type: 'ATTACK', value: 6 + stageBonus, description: '处决', turnsRemaining: 1 };
+     // 2. 绝境求生防爆机制 (自身血量低于 30% 时，50%概率触发求生，防止无限加血当乌龟)
+     if (enemyHpPct < 0.30 && Math.random() < 0.50) {
+         if (Math.random() < 0.6) { 
+             return { type: 'HEAL', value: 5 + stageBonus + turnBonus, description: '紧急再生', turnsRemaining: 1 };
+         } else {
+             return { type: 'DEFEND', value: 8 + stageBonus * 2, description: '绝境壁垒', turnsRemaining: 1 };
+         }
      }
      
      const roll = Math.random();
-     if (turnCount > 1 && roll < 0.35) { 
+     
+     // 3. 状态与战术博弈层 (前中期施加污染与状态，防无限堆叠)
+     if (turnCount > 1 && roll < 0.40) { 
          const subRoll = Math.random();
-         if (subRoll < 0.2) {
+         const enemyStr = currentTurnEnemy.statuses['STRENGTH'] || 0;
+         const playerWeak = currentPlayer.statuses['WEAK'] || 0;
+
+         // 细分污染类型：15% 精神污染 (污染手牌), 15% 异化 (污染缓冲区)
+         if (subRoll < 0.15) {
              return { type: 'POLLUTE', value: 0, description: '精神污染', turnsRemaining: 1 };
-         } else if (subRoll < 0.5) { 
+         } else if (subRoll < 0.30) {
+             return { type: 'POLLUTE', value: 0, description: '异化', turnsRemaining: 1 };
+         } else if (subRoll < 0.60 && playerWeak < 3) { // 限制虚弱腐蚀无限叠加
              return Math.random() > 0.5 
                 ? { type: 'DEBUFF', value: 0, description: '腐蚀', turnsRemaining: 1 }
                 : { type: 'DEBUFF', value: 0, description: '虚弱', turnsRemaining: 1 };
-         } else if (subRoll < 0.9) { 
+         } else if (subRoll < 0.90 && enemyStr < 3) { // 限制狂暴硬化无限叠加
              return Math.random() > 0.5
                 ? { type: 'BUFF', value: 2, description: '狂暴', turnsRemaining: 1 } 
                 : { type: 'BUFF', value: 2, description: '硬化', turnsRemaining: 1 }; 
          } else {
-             return { type: 'POLLUTE', value: 0, description: '异化', turnsRemaining: 1 };
+             // 智能兜底：如果 Buff/Debuff 层数足够了，转化为直接突击
+             return { type: 'ATTACK', value: 4 + stageBonus + turnBonus, description: '突击', turnsRemaining: 1 };
          }
      }
      
-     if (roll < 0.5) {
+     // 4. 常规行动判定
+     const normalRoll = Math.random();
+     if (normalRoll < 0.5) {
          return { type: 'ATTACK', value: 3 + stageBonus + turnBonus, description: '攻击', turnsRemaining: 1 };
-     } else if (roll < 0.7) {
-         return { type: 'ATTACK', value: 4 + stageBonus + turnBonus, description: '重击', turnsRemaining: 2 };
-     } else if (roll < 0.85) {
+     } else if (normalRoll < 0.75) {
+         return { type: 'ATTACK', value: 5 + stageBonus + turnBonus, description: '重击', turnsRemaining: 2 };
+     } else if (normalRoll < 0.90) {
          return { type: 'DEFEND', value: 5 + stageBonus * 2, description: '护甲强化', turnsRemaining: 1 };
      } else {
-         return { type: 'HEAL', value: 3 + stageBonus, description: '整顿', turnsRemaining: 1 };
+         // 智能治疗兜底判定：如果血量 > 85%，绝对不加血，转化为蓄势或防御
+         if (enemyHpPct > 0.85) {
+             return { type: 'BUFF', value: 1, description: '蓄势', turnsRemaining: 1 };
+         } else {
+             return { type: 'HEAL', value: 3 + stageBonus, description: '整顿', turnsRemaining: 1 };
+         }
      }
   };
 
