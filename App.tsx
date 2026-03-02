@@ -68,8 +68,6 @@ const INITIAL_META_STATE: MetaState = {
       id: 'commander-001',
       name: '本体 (指挥官)',
       class: 'COMMANDER',
-      quality: 'GOLD',
-      grade: 'SS',
       level: 0,
       exp: 0,
       stats: { ...INITIAL_PLAYER, charge: 0 },
@@ -269,20 +267,16 @@ export default function App() {
                     let newExp = c.exp + player.pendingExp;
                     let newLevel = c.level;
                     let newMaxHp = c.stats.maxHp;
-                    // 只有存活才能获得经验并升级
-                    if (isCommander || c.status === 'ALIVE') {
-                        while (newLevel < 5 && newExp >= EXP_THRESHOLDS[newLevel]) {
-                            newLevel++;
-                            newMaxHp += 5;
-                        }
-                    }
+
+                    // 修复：指挥官永远不参与升级；素体战斗失败即阵亡，也无需升级。
+                    // 直接删除了导致指挥官异常加血的升级判定循环。
 
                     return {
                         ...c,
                         level: isCommander ? 0 : newLevel,
                         exp: isCommander ? 0 : newExp,
                         status: isCommander ? 'ALIVE' : 'DEAD', 
-                        stats: { ...c.stats, level: newLevel, maxHp: newMaxHp, currentHp: isCommander || c.status === 'ALIVE' ? newMaxHp : 0 },
+                        stats: { ...c.stats, level: isCommander ? 0 : newLevel, maxHp: newMaxHp, currentHp: isCommander ? newMaxHp : 0 },
                         inventory: { ...c.inventory, items: safeItems, grid: newGrid }
                     };
                 }

@@ -1,7 +1,7 @@
 
 import React, { useState,useEffect, useCallback } from 'react';
 import { MetaState, ResourceType, BuildingType, Character, InventoryState,CardType} from '../../types';
-import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText, LucideSkull } from 'lucide-react';
+import { LucideCoins, LucideGhost, LucideZap, LucidePackage, LucideCpu, LucideMap, LucideUser, LucidePlay, LucideShoppingCart,LucideActivity, LucideBox, LucideFileText, LucideSkull, LucideX } from 'lucide-react';
 import { InventoryView } from './InventoryView';
 import { INVENTORY_WIDTH, INVENTORY_HEIGHT, LOOT_TABLE, STARTING_BLUEPRINTS, AGENT_TEMPLATES, EXP_THRESHOLDS } from '../../constants'; // 引入战利品表以生成悬赏
 import { createEmptyGrid, removeItemFromGrid,canPlaceItem, placeItemInGrid } from '../../utils/gridLogic';
@@ -15,11 +15,12 @@ interface BaseCampViewProps {
 }
 
 type Tab = 'WAREHOUSE' | 'BODY' | 'START' | 'MISSION' | 'TRADE';
-type BodySubTab = 'STATUS' | 'RECRUIT';
+type BodySubTab = 'STATUS' | 'RECRUIT' | 'GALLERY';
 
 export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaState, onStartRun, onUpgradeBuilding }) => {
   const [activeTab, setActiveTab] = useState<Tab>('START');
   const [bodySubTab, setBodySubTab] = useState<BodySubTab>('STATUS');
+  const [galleryItem, setGalleryItem] = useState<Partial<Character> | null>(null);
   const [selectedCharId, setSelectedCharId] = useState<string>(metaState.roster[0]?.id || '');
   
   // 招募克隆仓动画与确认面板状态
@@ -437,6 +438,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
         <div className="flex justify-center gap-4 p-2 border-b border-stone-800 bg-black/40">
             <button onClick={() => setBodySubTab('STATUS')} className={`px-4 py-1 text-xs font-bold rounded-full transition-colors ${bodySubTab === 'STATUS' ? 'bg-stone-700 text-white' : 'text-stone-500 hover:text-stone-300'}`}>状态</button>
             <button onClick={() => setBodySubTab('RECRUIT')} className={`px-4 py-1 text-xs font-bold rounded-full transition-colors ${bodySubTab === 'RECRUIT' ? 'bg-stone-700 text-white' : 'text-stone-500 hover:text-stone-300'}`}>招募</button>
+            <button onClick={() => setBodySubTab('GALLERY')} className={`px-4 py-1 text-xs font-bold rounded-full transition-colors ${bodySubTab === 'GALLERY' ? 'bg-stone-700 text-white' : 'text-stone-500 hover:text-stone-300'}`}>图鉴</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
@@ -574,22 +576,68 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center">
-                            <span className="text-[10px] text-stone-500 uppercase tracking-wider">Class</span>
-                            <span className="text-sm font-bold text-stone-300">{selectedChar.class}</span>
+                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center justify-center">
+                            <span className="text-[10px] text-stone-500 tracking-wider mb-1">定位分类</span>
+                            <span className="text-sm font-bold text-stone-300">
+                                {selectedChar.class === 'COMMANDER' ? '指挥官' : selectedChar.class === 'OPERATOR' ? '标准型' : selectedChar.class === 'GHOST' ? '特化型' : '构造体'}
+                            </span>
                         </div>
-                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center">
-                            <span className="text-[10px] text-stone-500 uppercase tracking-wider">Max HP</span>
-                            <span className="text-xl font-mono text-stone-200">{selectedChar.stats.maxHp}</span>
+                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center justify-center">
+                            <span className="text-[10px] text-stone-500 tracking-wider mb-1">品质评级</span>
+                            <span className={`text-sm font-bold ${!selectedChar.quality ? 'text-stone-600' : selectedChar.quality === 'WHITE' ? 'text-stone-400' : selectedChar.quality === 'GREEN' ? 'text-green-400' : selectedChar.quality === 'BLUE' ? 'text-blue-400' : selectedChar.quality === 'PURPLE' ? 'text-purple-400' : 'text-yellow-400'}`}>
+                                {!selectedChar.quality ? '无' : selectedChar.quality === 'WHITE' ? '次品 (C)' : selectedChar.quality === 'GREEN' ? '量产型 (B)' : selectedChar.quality === 'BLUE' ? '特化型 (A)' : selectedChar.quality === 'PURPLE' ? '精英 (S)' : '传奇 (SS)'}
+                            </span>
                         </div>
-                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center">
-                            <span className="text-[10px] text-stone-500 uppercase tracking-wider">Energy</span>
-                            <span className="text-xl font-mono text-stone-200">{selectedChar.stats.maxEnergy}</span>
+                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center justify-center">
+                            <span className="text-[10px] text-stone-500 tracking-wider mb-1">当前血量/血量上限</span>
+                            <div className="flex items-baseline gap-1">
+                                <span className={`text-xl font-mono font-bold ${selectedChar.status === 'DEAD' ? 'text-red-500' : selectedChar.stats.currentHp <= selectedChar.stats.maxHp * 0.3 ? 'text-red-400 animate-pulse' : 'text-green-400'}`}>
+                                    {selectedChar.stats.currentHp}
+                                </span>
+                                <span className="text-sm font-mono text-stone-500">/ {selectedChar.stats.maxHp}</span>
+                            </div>
                         </div>
-                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center">
-                            <span className="text-[10px] text-stone-500 uppercase tracking-wider">Sanity</span>
-                            <span className="text-xl font-mono text-stone-200">100%</span>
+                        <div className="p-3 bg-stone-900/50 border border-stone-800 rounded flex flex-col items-center justify-center">
+                            <span className="text-[10px] text-stone-500 tracking-wider mb-1">当前体征</span>
+                            <span className={`text-sm font-bold ${selectedChar.status === 'DEAD' ? 'text-red-500 animate-pulse drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]' : 'text-green-500'}`}>
+                                {selectedChar.status === 'DEAD' ? '已阵亡' : '生命体征平稳'}
+                            </span>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {bodySubTab === 'GALLERY' && (
+                <div className="w-full max-w-2xl flex flex-col gap-4 mt-4 animate-fade-in">
+                    <div className="text-center space-y-2 mb-4">
+                        <h3 className="text-2xl font-display font-bold text-stone-300 tracking-widest">素体图鉴</h3>
+                        <p className="text-xs text-stone-500">已知战斗序列档案库 (按品质排列)</p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto pr-2 pb-10 custom-scrollbar">
+                        {(() => {
+                            const sortedTemplates = [...AGENT_TEMPLATES].sort((a, b) => {
+                                const score = { 'GOLD': 5, 'PURPLE': 4, 'BLUE': 3, 'GREEN': 2, 'WHITE': 1 };
+                                return (score[b.quality as keyof typeof score] || 0) - (score[a.quality as keyof typeof score] || 0);
+                            });
+                            
+                            return sortedTemplates.map((tmpl, idx) => {
+                                const qColor = tmpl.quality === 'WHITE' ? 'border-stone-500 bg-stone-800/30' : tmpl.quality === 'GREEN' ? 'border-green-500 bg-green-900/20' : tmpl.quality === 'BLUE' ? 'border-blue-500 bg-blue-900/20' : tmpl.quality === 'PURPLE' ? 'border-purple-500 bg-purple-900/20' : tmpl.quality === 'GOLD' ? 'border-yellow-500 bg-yellow-900/20' : 'border-stone-800';
+                                const tColor = tmpl.quality === 'WHITE' ? 'text-stone-400' : tmpl.quality === 'GREEN' ? 'text-green-400' : tmpl.quality === 'BLUE' ? 'text-blue-400' : tmpl.quality === 'PURPLE' ? 'text-purple-400' : tmpl.quality === 'GOLD' ? 'text-yellow-400' : 'text-stone-400';
+                                return (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => setGalleryItem(tmpl)}
+                                        className={`p-3 border rounded-lg flex flex-col items-center gap-2 transition-all hover:scale-105 shadow-md hover:shadow-lg cursor-pointer ${qColor}`}
+                                    >
+                                        <div className="relative">
+                                            <LucideUser size={32} className={tColor} />
+                                            {tmpl.grade && <div className={`absolute -bottom-2 -right-2 text-[10px] font-bold bg-black px-1.5 rounded border border-stone-800 ${tColor}`}>{tmpl.grade}</div>}
+                                        </div>
+                                        <div className="text-xs font-bold text-center mt-1 truncate w-full text-stone-300">{tmpl.name}</div>
+                                    </button>
+                                );
+                            });
+                        })()}
                     </div>
                 </div>
             )}
@@ -1029,6 +1077,72 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           <TabButton id="MISSION" icon={<LucideMap size={18} />} label="任务" />
           <TabButton id="TRADE" icon={<LucideShoppingCart size={18} />} label="交易" />
       </div>
+
+      {/* 素体图鉴详情弹窗 */}
+      {galleryItem && (
+          <div className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center backdrop-blur-md animate-fade-in p-4" onClick={() => setGalleryItem(null)}>
+              <div className={`bg-stone-900 border-2 w-full max-w-sm rounded-xl p-6 flex flex-col shadow-2xl relative
+                  ${galleryItem.quality === 'WHITE' ? 'border-stone-500' : galleryItem.quality === 'GREEN' ? 'border-green-500' : galleryItem.quality === 'BLUE' ? 'border-blue-500' : galleryItem.quality === 'PURPLE' ? 'border-purple-500' : 'border-yellow-500'}
+              `} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setGalleryItem(null)} className="absolute top-4 right-4 text-stone-500 hover:text-white transition-colors">
+                      <LucideX size={24} />
+                  </button>
+                  
+                  <div className="flex flex-col items-center gap-4 mb-6">
+                      <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center shadow-lg bg-black/50
+                          ${galleryItem.quality === 'WHITE' ? 'border-stone-500 text-stone-500' : galleryItem.quality === 'GREEN' ? 'border-green-500 text-green-500' : galleryItem.quality === 'BLUE' ? 'border-blue-500 text-blue-500' : galleryItem.quality === 'PURPLE' ? 'border-purple-500 text-purple-500' : 'border-yellow-500 text-yellow-500'}
+                      `}>
+                          <LucideUser size={48} />
+                      </div>
+                      <div className="text-center">
+                          <h2 className="text-2xl font-bold text-stone-100 flex items-center justify-center gap-2">
+                              {galleryItem.name}
+                              <span className={`text-sm px-2 py-0.5 rounded border font-mono
+                                  ${galleryItem.quality === 'WHITE' ? 'border-stone-500 text-stone-400 bg-stone-900' : galleryItem.quality === 'GREEN' ? 'border-green-500 text-green-400 bg-green-950' : galleryItem.quality === 'BLUE' ? 'border-blue-500 text-blue-400 bg-blue-950' : galleryItem.quality === 'PURPLE' ? 'border-purple-500 text-purple-400 bg-purple-950' : 'border-yellow-500 text-yellow-400 bg-yellow-950'}
+                              `}>{galleryItem.grade}</span>
+                          </h2>
+                          <div className="text-xs text-stone-500 mt-1 uppercase tracking-widest">{galleryItem.class === 'OPERATOR' ? '标准型 (OPERATOR)' : galleryItem.class === 'GHOST' ? '特化型 (GHOST)' : '构造体 (CONSTRUCT)'}</div>
+                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                      <div className="bg-black/50 p-2 rounded border border-stone-800 text-center">
+                          <div className="text-[10px] text-stone-500 mb-1">基础生命值</div>
+                          <div className="font-mono text-lg text-dungeon-red font-bold">{galleryItem.stats?.maxHp}</div>
+                      </div>
+                      <div className="bg-black/50 p-2 rounded border border-stone-800 text-center">
+                          <div className="text-[10px] text-stone-500 mb-1">品质层级</div>
+                          <div className={`font-bold text-sm mt-1
+                              ${galleryItem.quality === 'WHITE' ? 'text-stone-400' : galleryItem.quality === 'GREEN' ? 'text-green-400' : galleryItem.quality === 'BLUE' ? 'text-blue-400' : galleryItem.quality === 'PURPLE' ? 'text-purple-400' : 'text-yellow-400'}
+                          `}>
+                              {galleryItem.quality === 'WHITE' ? '次品' : galleryItem.quality === 'GREEN' ? '量产型' : galleryItem.quality === 'BLUE' ? '特化型' : galleryItem.quality === 'PURPLE' ? '精英' : '传奇'}
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="space-y-3">
+                      {galleryItem.passiveSkill ? (
+                          <div className="bg-black/40 border border-stone-700 p-3 rounded">
+                              <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-stone-800 text-stone-300 w-max mb-2">被动技能 (Lv.2 解锁)</div>
+                              <div className="font-bold text-stone-200 text-sm mb-1">{galleryItem.passiveSkill.name}</div>
+                              <div className="text-xs text-stone-400 leading-relaxed">{galleryItem.passiveSkill.desc}</div>
+                          </div>
+                      ) : (
+                          <div className="text-center text-stone-600 italic text-sm">该素体无技能回路</div>
+                      )}
+
+                      {(galleryItem as any).activeSkill && (
+                          <div className="bg-black/40 border border-dungeon-gold/30 p-3 rounded relative overflow-hidden">
+                              <div className="absolute inset-0 bg-dungeon-gold/5 pointer-events-none"></div>
+                              <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-900/50 text-dungeon-gold border border-dungeon-gold/50 w-max mb-2 relative z-10">主动技能 (Lv.4 解锁)</div>
+                              <div className="font-bold text-dungeon-gold text-sm mb-1 relative z-10">{(galleryItem as any).activeSkill.name}</div>
+                              <div className="text-xs text-stone-400 leading-relaxed relative z-10">{(galleryItem as any).activeSkill.desc}</div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
 
      {/* 核心优化：全局浮动 Toast 提示面板 (小巧、透明、快速) */}
       {toast && (
