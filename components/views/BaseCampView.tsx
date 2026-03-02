@@ -710,9 +710,9 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                     </div>
                     {/* 活体解雇/低价回收逻辑 (置于状态面板下方) */}
                     {selectedChar.status !== 'DEAD' && selectedChar.class !== 'COMMANDER' && (
-                        <div className="mt-2 flex justify-end w-full">
+                        <div className="mt-4 flex justify-center w-full">
                             <button 
-                                className="px-4 py-2 border border-yellow-900/50 bg-yellow-950/20 text-yellow-600/80 hover:bg-yellow-900/50 hover:text-yellow-400 hover:border-yellow-600/80 rounded flex items-center gap-2 text-xs font-bold transition-all shadow-md"
+                                className="w-[80%] py-3 border border-yellow-900/50 bg-yellow-950/20 text-yellow-600/80 hover:bg-yellow-900/40 hover:text-yellow-400 hover:border-yellow-500 rounded-lg flex justify-center items-center gap-2 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-[0_0_15px_rgba(161,98,7,0.3)] hover:scale-[1.02]"
                                 onClick={(e) => {
                                     const el = e.currentTarget;
                                     if (el.dataset.primed !== 'true') {
