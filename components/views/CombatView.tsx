@@ -51,11 +51,12 @@ const getCardCalculations = (index: number, total: number) => {
    return { xOffset, yOffset, rotation };
 };
 
-// Return style for hand rendering
+// Return style for hand rendering (核心优化：加入 will-change 开启硬件加速)
 const getCardStyle = (index: number, total: number, extraOffset: {x: number, y: number} = {x:0, y:0}) => {
    const { xOffset, yOffset, rotation } = getCardCalculations(index, total);
    return {
-       transform: `translateX(calc(-50% + ${xOffset}px + ${extraOffset.x}px)) translateY(${yOffset + extraOffset.y}px) rotate(${rotation}deg)`
+       transform: `translate3d(calc(-50% + ${xOffset}px + ${extraOffset.x}px), ${yOffset + extraOffset.y}px, 0) rotate(${rotation}deg)`,
+       willChange: 'transform' // 强制 GPU 渲染层
    };
 };
 
@@ -106,6 +107,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   const TURN_LIMIT = 30;
   const [timeLeft, setTimeLeft] = useState(TURN_LIMIT);
 
+  const [isEnemyDying, setIsEnemyDying] = useState(false); // 核心优化：怪物死亡演出状态
+
   // --- CHECK WIN/LOSS ---
   // --- Start of Combat Passives (Visuals) ---
   useEffect(() => {
@@ -135,13 +138,30 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
       } else {
           onLose();
       }
-    } else if (enemy.currentHp <= 0) {
-        onWin(); // 战斗胜利后直接退出，奇遇留给下一环节判定
-    } else if (combatType === 'EXTRACTION' && turn > 3) {
+    } else if (enemy.currentHp <= 0 && !isEnemyDying) {
+        setIsEnemyDying(true);
+        setIsProcessing(true); // 锁定玩家操作，暂停倒计时
+        setIsHoverDisabled(true); // 锁定手牌交互
+        addLog(`>> 目标已消灭: ${enemy.name}`);
+        
+        // 播放华丽的多段斩杀与爆炸特效
+        triggerVfx('SLASH', 50, 50); 
+        setTimeout(() => triggerVfx('SLASH', 60, 40), 150);
+        setTimeout(() => triggerVfx('SLASH', 40, 60), 300);
+        setTimeout(() => triggerVfx('BURN', 50, 50, '击破', 'text-red-500'), 400);
+        
+        triggerShake('lg');
+        setScreenFlash('bg-red-900/30');
+        setTimeout(() => setScreenFlash(null), 800);
+
+        setTimeout(() => {
+            onWin(); // 延迟 1.5 秒，让死亡动画充分表演完再进入结算
+        }, 1500); 
+    } else if (combatType === 'EXTRACTION' && turn > 3 && !isEnemyDying) {
         onWin();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player.currentHp, enemy.currentHp, turn, combatType, isGodMode, player.activeSkill, player.level, player.charge, currentStage]);
+  }, [player.currentHp, enemy.currentHp, turn, combatType, isGodMode, player.activeSkill, player.level, player.charge, currentStage, isEnemyDying]);
   
   // Archive Modal State
   const [archiveCategory, setArchiveCategory] = useState<string>('ALL');
@@ -1048,14 +1068,21 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
   };
 
   useEffect(() => {
+      let rafId: number; // 使用 requestAnimationFrame 优化拖动渲染帧率
+      
       const handleGlobalPointerMove = (e: PointerEvent) => {
           if (dragCardIndex === null) return;
-          const deltaX = e.clientX - dragStartPos.current.x;
-          const deltaY = e.clientY - dragStartPos.current.y;
-          setDragOffset({ x: deltaX, y: deltaY });
+          if (rafId) cancelAnimationFrame(rafId);
+          
+          rafId = requestAnimationFrame(() => {
+              const deltaX = e.clientX - dragStartPos.current.x;
+              const deltaY = e.clientY - dragStartPos.current.y;
+              setDragOffset({ x: deltaX, y: deltaY });
+          });
       };
 
       const handleGlobalPointerUp = (e: PointerEvent) => {
+          if (rafId) cancelAnimationFrame(rafId);
           if (dragCardIndex === null) return;
           const deltaY = e.clientY - dragStartPos.current.y;
           const totalDist = Math.hypot(e.clientX - dragStartPos.current.x, deltaY);
@@ -1962,7 +1989,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
      let dynamicAnimation = 'animate-float';
      let dynamicShadow = ''; 
 
-     if (isFrozen) {
+     if (isEnemyDying) {
+         // 核心性能优化：移除极度耗费性能的巨型 drop-shadow 和复杂 filter 组合，改用基础颜色过渡
+         dynamicColor = 'text-red-900';
+         dynamicAnimation = ''; // 死亡时停止浮动动画计算
+         dynamicShadow = ''; 
+     } else if (isFrozen) {
          dynamicColor = 'text-cyan-300';
          dynamicAnimation = 'animate-pulse grayscale brightness-150';
          dynamicShadow = 'drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]';
@@ -1998,10 +2030,13 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
      return (
         <div 
             key={`${enemy.name}-${currentStage}`}
-            className={`relative w-72 h-72 flex items-center justify-center z-10 transition-transform duration-500 ${enemyLunge ? 'scale-110' : 'scale-100'}`}
+            // 核心性能优化：移除 blur-xl，改用 translate3d 触发 GPU 硬件加速进行缩放
+            className={`relative w-72 h-72 flex items-center justify-center z-10 transition-all ${isEnemyDying ? 'duration-1000 ease-out opacity-0' : 'duration-500'} ${enemyLunge && !isEnemyDying ? 'scale-110' : 'scale-100'}`}
+            style={isEnemyDying ? { transform: 'scale3d(1.5, 1.5, 1)', willChange: 'transform, opacity' } : { willChange: 'transform' }}
         >
             {/* Background Aura (Based on Monster Type) */}
-            <div className={`absolute inset-4 rounded-full border border-white/5 bg-gradient-to-b ${baseVisual.bgGradient} backdrop-blur-sm opacity-60`}></div>
+            {/* 核心性能优化：死亡时直接移除带 backdrop-blur 的光环，瞬间减轻 GPU 负担 */}
+            {!isEnemyDying && <div className={`absolute inset-4 rounded-full border border-white/5 bg-gradient-to-b ${baseVisual.bgGradient} backdrop-blur-sm opacity-60`}></div>}
             
             {/* Main Visual Container */}
             <div className={`relative z-20 ${dynamicColor} ${dynamicAnimation} transition-colors duration-700 ${dynamicShadow}`}>
@@ -2015,10 +2050,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
             </div>
 
             {/* Frozen Overlay */}
-            {isFrozen && <LucideSnowflake size={120} className="absolute z-30 text-cyan-100/50 animate-spin-slow" />}
+            {isFrozen && !isEnemyDying && <LucideSnowflake size={120} className="absolute z-30 text-cyan-100/50 animate-spin-slow" />}
 
             {/* Intent Indicator */}
-            {enemy.intents.map((intent, idx) => {
+            {!isEnemyDying && enemy.intents.map((intent, idx) => {
                 if (!intent || (idx > 0 && !(player.passiveSkill?.id === 'oracle' && player.level >= 2))) return null;
                 
                 return (
@@ -2208,20 +2243,20 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
               </div>
 
               {/* Row 2: Enemy Name & HP (The Blood Vessel) */}
-              <div className="w-full flex flex-col items-center">
+              <div className={`w-full flex flex-col items-center transition-opacity duration-500 ${isEnemyDying ? 'opacity-30 grayscale' : 'opacity-100'}`}>
                    <div className="flex items-end justify-between w-full max-w-sm mb-1 px-1">
                        <span className="text-sm font-display font-bold text-stone-200 tracking-[0.15em] uppercase drop-shadow-md truncate max-w-[200px]">
                            {enemy.name}
                        </span>
                        <div className="flex items-center gap-3">
-                           {enemy.shield > 0 && (
+                           {enemy.shield > 0 && !isEnemyDying && (
                                <div className="flex items-center gap-1 text-stone-400 font-mono text-sm font-bold bg-stone-800/80 px-1.5 rounded shadow-sm">
                                    <LucideShield size={14} className="text-stone-400" />
                                    {enemy.shield}
                                </div>
                            )}
                            <span className="text-xs font-mono text-dungeon-red tracking-widest font-bold">
-                               {enemy.currentHp} <span className="text-stone-600 text-[10px]">/ {enemy.maxHp}</span>
+                               {isEnemyDying ? 0 : enemy.currentHp} <span className="text-stone-600 text-[10px]">/ {enemy.maxHp}</span>
                            </span>
                        </div>
                    </div>
@@ -2465,21 +2500,19 @@ export const CombatView: React.FC<CombatViewProps> = ({ enemy: initialEnemy, pla
                    const isPolluting = cardObj.isPolluting;
 
                    // Dynamic Class Logic for Mobile Hover Fix
-                   let containerClass = "absolute origin-bottom w-28 transition-all duration-200 ease-out "; 
+                   // 核心优化：拖动时移除 transition-all，防止 React 渲染与 CSS 过渡打架导致掉帧
+                   let containerClass = "absolute origin-bottom w-28 "; 
                    
                    if (isDraggingThis) {
                        // Dragging: Lifted, No pointer events on wrapper (handled by window), High Z
-                       containerClass = "absolute origin-bottom w-28 z-[100] bottom-52 pointer-events-none";
+                       // 关键：拖动时绝对不能有 transition 延迟！
+                       containerClass += "z-[100] bottom-52 pointer-events-none drop-shadow-2xl"; 
                    } else if (isDiscarding) {
-                       // Discard Mode: Interactive
-                       containerClass += "bottom-40 hover:bottom-44 hover:z-50 cursor-pointer opacity-100 scale-105 z-50";
+                       containerClass += "transition-all duration-200 ease-out bottom-40 hover:bottom-44 hover:z-50 cursor-pointer opacity-100 scale-105 z-50";
                    } else if (!isHoverDisabled && !isAnyDragging) {
-                        // Standard Idle: Interactive, Hover effects enabled
-                        // Note: We use !isAnyDragging to prevent neighbors from reacting while we drag one
-                        containerClass += "bottom-40 hover:bottom-52 hover:z-50 hover:scale-110"; 
+                       containerClass += "transition-all duration-200 ease-out bottom-40 hover:bottom-52 hover:z-50 hover:scale-110"; 
                    } else {
-                        // Locked / Busy: Inert
-                        containerClass += "bottom-40 pointer-events-none";
+                       containerClass += "transition-all duration-200 ease-out bottom-40 pointer-events-none";
                    }
 
                    return (

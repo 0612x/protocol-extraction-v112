@@ -20,8 +20,8 @@ export const MetaView: React.FC<MetaViewProps> = ({ onStartRun, playerLevel }) =
       <div className="z-10 flex flex-col items-center gap-8 w-full max-w-sm animate-fade-in p-6 border-y-2 border-dungeon-stone/30 bg-black/40 backdrop-blur-sm">
         
         <div className="text-center space-y-2">
-            <h1 className="text-5xl md:text-6xl font-display font-bold text-dungeon-blood tracking-widest drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
-              暗区<span className="text-dungeon-stone">指令</span>
+            <h1 className="text-5xl md:text-6xl font-display font-bold text-dungeon-gold tracking-widest drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
+              暗区<span className="text-dungeon-stone">协议</span>
             </h1>
             <div className="text-xs font-serif tracking-[0.5em] text-dungeon-rust uppercase opacity-70">
               Protocol: Extraction
@@ -39,21 +39,21 @@ export const MetaView: React.FC<MetaViewProps> = ({ onStartRun, playerLevel }) =
         </button>
 
         <div className="mt-4 w-full text-center">
-             <div className="text-dungeon-gold font-display text-sm mb-2 opacity-80">- 状态 -</div>
-             <div className="grid grid-cols-2 gap-4 text-xs text-stone-500 border border-dungeon-stone/30 p-4 bg-black/60">
+             <div className="text-dungeon-gold font-display text-sm mb-2 opacity-80">- 指挥官档案 -</div>
+             <div className="grid grid-cols-2 gap-4 text-xs text-stone-500 border border-dungeon-stone/30 p-4 bg-black/60 rounded-sm shadow-inner">
                  <div className="flex flex-col items-center">
-                     <span className="uppercase tracking-widest mb-1">理智</span>
-                     <span className="text-dungeon-flesh text-lg font-serif">LV.{playerLevel}</span>
+                     <span className="uppercase tracking-widest mb-1 text-stone-600">权限等级</span>
+                     <span className="text-stone-300 text-xl font-serif font-bold">Lv.{playerLevel}</span>
                  </div>
                  <div className="flex flex-col items-center">
-                     <span className="uppercase tracking-widest mb-1">命运</span>
-                     <span className="text-dungeon-flesh text-lg font-serif">未知</span>
+                     <span className="uppercase tracking-widest mb-1 text-stone-600">系统连接</span>
+                     <span className="text-green-500 text-xl font-serif font-bold animate-pulse">正常</span>
                  </div>
              </div>
         </div>
         
-        <div className="text-[10px] text-stone-700 font-serif italic">
-            "在深渊凝视你之前，带上你的战利品逃离..."
+        <div className="mt-6 text-base md:text-lg text-stone-400 font-serif italic tracking-widest text-center px-4 leading-relaxed">
+            "在深渊凝视你之前，<br/>带上你的战利品，<span className="text-red-500 font-bold">逃离。</span>"
         </div>
       </div>
     </div>

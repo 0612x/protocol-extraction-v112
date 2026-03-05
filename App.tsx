@@ -13,7 +13,7 @@ import { DraftView } from './components/views/DraftView';
 import { SettlementView } from './components/views/SettlementView'; // 引入结算界面
 import { EventView } from './components/views/EventView'; // 新增奇遇面板
 import { getPlayerZone } from './utils/gridLogic'; // 引入区域计算
-import { LucideX, LucideSkull } from 'lucide-react';
+import { LucideX, LucideSkull, LucideSettings, LucideLogOut, LucideTrash2, LucideBookOpen, LucideTarget, LucideMap, LucidePackage, LucideCpu, LucidePlay, LucideShoppingCart, LucideZap } from 'lucide-react';
 import { GameEvent, EventChoice } from './types';
 import { MAPS, ENEMY_TEMPLATES, EVENTS_POOL } from './constants';
 
@@ -102,10 +102,13 @@ export default function App() {
   const [currentMap, setCurrentMap] = useState<string>('MAP-01'); // 当前战区
   const [pendingEvent, setPendingEvent] = useState<GameEvent | null>(null); // 待处理奇遇
 
+  // System & Settings
+  const [showOutGameMenu, setShowOutGameMenu] = useState(false);
+  const [showGameGuide, setShowGameGuide] = useState(false); // 新增：游戏指南弹窗状态
+  const [isDataLoaded, setIsDataLoaded] = useState(true); // 网页端直接设为 true，无需等待
+
   // Developer Tools
   const [isGodMode, setIsGodMode] = useState(false);
-
-
 
   // --- STATS CALCULATION (Passive Effects) ---
   useEffect(() => {
@@ -752,6 +755,245 @@ export default function App() {
               )}
           </div>
       )}
+
+      {/* 局外系统菜单按钮 */}
+      {(phase === 'MENU' || phase === 'BASE_CAMP') && (
+          <button 
+              onClick={() => setShowOutGameMenu(true)}
+              className="absolute top-4 right-4 z-[100] p-2.5 bg-black/60 border border-stone-700 text-stone-400 rounded-full hover:text-white hover:bg-stone-800 transition-all shadow-[0_0_15px_rgba(0,0,0,0.8)] backdrop-blur-sm"
+          >
+              <LucideSettings size={20} />
+          </button>
+      )}
+
+      {/* 局外系统菜单弹窗 */}
+      {showOutGameMenu && (
+          <div className="fixed inset-0 z-[999] bg-black/90 backdrop-blur-sm flex items-center justify-center animate-fade-in" onClick={() => setShowOutGameMenu(false)}>
+              <div className="bg-dungeon-dark border border-stone-700 p-6 rounded-xl flex flex-col items-center gap-6 max-w-xs w-full shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setShowOutGameMenu(false)} className="absolute top-3 right-3 text-stone-500 hover:text-white p-1 bg-stone-800 rounded-full"><LucideX size={18}/></button>
+                  <div className="text-center mt-2">
+                      <h2 className="text-2xl font-display font-bold text-stone-200 tracking-widest">系统设置</h2>
+                      <p className="text-[10px] text-stone-500 mt-1 uppercase tracking-widest">System Options</p>
+                  </div>
+                  <div className="w-full h-px bg-stone-800"></div>
+                  
+                  <div className="flex flex-col gap-3 w-full">
+                  {/* 核心：新增的战地手册指南按钮 */}
+                      <button 
+                          onClick={() => {
+                              setShowOutGameMenu(false);
+                              setShowGameGuide(true);
+                          }}
+                          className="w-full py-3 bg-dungeon-gold/10 hover:bg-yellow-900/40 text-dungeon-gold border border-dungeon-gold/50 hover:border-yellow-400 transition-all rounded flex items-center justify-center gap-2 font-bold tracking-widest shadow-inner shadow-[0_0_10px_rgba(202,138,4,0.1)]"
+                      >
+                          <LucideBookOpen size={18} /> 深渊战地手册 (指南)
+                      </button>
+                      <button 
+                          onClick={() => {
+                              if (window.confirm("确定要重置游戏吗？此操作不可逆！")) {
+                                  window.location.reload(); 
+                              }
+                          }}
+                          className="w-full py-3 bg-red-950/40 hover:bg-red-900/80 text-red-500 hover:text-white border border-red-900/50 hover:border-red-500 transition-all rounded flex items-center justify-center gap-2 font-bold tracking-widest shadow-inner"
+                      >
+                          <LucideTrash2 size={18} /> 重置游戏
+                      </button>
+                      
+                      <button 
+                          onClick={() => window.alert("网页预览端无法直接退出，请关闭浏览器标签页。")}
+                          className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white border border-stone-700 hover:border-stone-400 transition-all rounded flex items-center justify-center gap-2 font-bold tracking-widest shadow-inner"
+                      >
+                          <LucideLogOut size={18} /> 退出游戏
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+ {/* 新增：深渊战地手册（游戏完整指南）图文沉浸版弹窗 */}
+      {showGameGuide && (
+          <div className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex items-center justify-center animate-fade-in p-4 md:p-8" onClick={() => setShowGameGuide(false)}>
+              <div className="bg-stone-950 border border-stone-700 w-full max-w-4xl max-h-[90vh] rounded-xl flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                  
+                  {/* Header */}
+                  <div className="flex justify-between items-center p-4 md:p-6 border-b border-stone-800 bg-black/80 shrink-0 relative z-20">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-yellow-900/30 rounded border border-yellow-700/50">
+                              <LucideBookOpen className="text-dungeon-gold drop-shadow-[0_0_8px_rgba(202,138,4,0.8)]" size={28} />
+                          </div>
+                          <div>
+                              <h2 className="text-xl md:text-2xl font-bold text-stone-100 tracking-[0.2em] font-display">深渊战地手册</h2>
+                              <div className="text-[10px] text-stone-500 font-mono tracking-widest uppercase">Protocol: Extraction - Official Guide</div>
+                          </div>
+                      </div>
+                      <button onClick={() => setShowGameGuide(false)} className="text-stone-500 hover:text-white hover:bg-red-900 bg-stone-900 p-2 rounded-full transition-colors border border-stone-800"><LucideX size={20} /></button>
+                  </div>
+                  
+                  {/* Body */}
+                  <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-12 custom-scrollbar relative z-10">
+                      {/* 背景水印 */}
+                      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] pointer-events-none z-0">
+                          <LucideTarget size={500} />
+                      </div>
+
+                      {/* 1. 核心法则 */}
+                      <section className="relative z-10">
+                          <h3 className="text-dungeon-gold font-bold text-xl md:text-2xl border-b border-stone-800 pb-3 mb-4 flex items-center gap-2 drop-shadow-md">
+                              <LucideMap className="text-stone-500" size={24}/> 核心法则：深渊拾荒
+                          </h3>
+                          <div className="bg-stone-900/50 border-l-4 border-dungeon-red p-4 md:p-5 rounded text-stone-300 text-sm md:text-base leading-relaxed space-y-3 shadow-inner">
+                              <p>在这片被虚空感染的废土上，你需要派遣<span className="text-blue-400 font-bold">战斗素体</span>深入不同危险等级的战区，击败畸变体并搜刮战利品。</p>
+                              <p>整个协议的核心原则只有一个：<span className="text-red-500 font-bold bg-red-950/50 px-2 py-0.5 rounded border border-red-900/50">在素体死亡前撤离！</span></p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                  <div className="bg-green-950/20 border border-green-900/30 p-3 rounded flex gap-3 items-start">
+                                      <div className="text-green-500 text-xl font-bold mt-1">✓</div>
+                                      <div>
+                                          <div className="font-bold text-green-400">成功撤离</div>
+                                          <div className="text-xs text-stone-400 mt-1">背包内安置在<span className="text-stone-200 font-bold">【安全区 (SAFE)】</span>的所有战利品转化为大量资金与物资，存入基地。</div>
+                                      </div>
+                                  </div>
+                                  <div className="bg-red-950/20 border border-red-900/30 p-3 rounded flex gap-3 items-start">
+                                      <div className="text-red-500 text-xl font-bold mt-1">✗</div>
+                                      <div>
+                                          <div className="font-bold text-red-500">阵亡 (M.I.A)</div>
+                                          <div className="text-xs text-stone-400 mt-1">素体将沦为<span className="text-red-400 font-bold">报废残骸</span>。其携带的极品装备、未锁定的战利品全部永久丢失。贪婪往往是最大的敌人！</div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </section>
+                        {/* 2. 基地中枢 */}
+                      <section className="relative z-10">
+                          <h3 className="text-dungeon-gold font-bold text-xl md:text-2xl border-b border-stone-800 pb-3 mb-4 flex items-center gap-2 drop-shadow-md">
+                              <LucideSettings className="text-stone-500" size={24}/> 基地设施 (Base Camp)
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="bg-black/60 border border-stone-700 hover:border-stone-500 transition-colors p-4 rounded-lg shadow-md">
+                                  <div className="text-dungeon-gold font-bold mb-2 flex items-center gap-2 text-lg"><LucidePackage size={18}/> 仓库区 (Warehouse)</div>
+                                  <div className="text-xs md:text-sm text-stone-400 leading-relaxed">管理你的全局物资。你可以在这里将重要装备拖拽转移给即将出战的素体。背包采用严苛的物理空间（俄罗斯方块）机制，合理安排空间是“垃圾佬”的致胜关键。</div>
+                              </div>
+                              <div className="bg-black/60 border border-stone-700 hover:border-purple-500/50 transition-colors p-4 rounded-lg shadow-md">
+                                  <div className="text-purple-400 font-bold mb-2 flex items-center gap-2 text-lg"><LucideCpu size={18}/> 素体管理 (Roster)</div>
+                                  <div className="text-xs md:text-sm text-stone-400 leading-relaxed">查看当前拥有的所有克隆素体。你可以消耗黑市资金<span className="text-purple-400 font-bold bg-purple-900/30 px-1 rounded">招募 / 十连特招</span>更强力的作战单元。报废的素体残骸在此处手动销毁清理。</div>
+                              </div>
+                              <div className="bg-black/60 border border-stone-700 hover:border-red-500/50 transition-colors p-4 rounded-lg shadow-md">
+                                  <div className="text-red-400 font-bold mb-2 flex items-center gap-2 text-lg"><LucidePlay size={18}/> 战区部署 (Deploy)</div>
+                                  <div className="text-xs md:text-sm text-stone-400 leading-relaxed">选择突入的战区。越危险的地图需要越高价值的“携入战备估值”作为门票，但同时会掉落价值十万的【神话级】红卡遗物。</div>
+                              </div>
+                              <div className="bg-black/60 border border-stone-700 hover:border-green-500/50 transition-colors p-4 rounded-lg shadow-md">
+                                  <div className="text-green-400 font-bold mb-2 flex items-center gap-2 text-lg"><LucideShoppingCart size={18}/> 黑市交易 (Trade)</div>
+                                  <div className="text-xs md:text-sm text-stone-400 leading-relaxed">交付指定的垃圾物资完成高危悬赏以赚取大额佣金，或在黑市直接花费重金购买保命消耗品与强力被动遗物。</div>
+                              </div>
+                          </div>
+                      </section>
+                      {/* 3. 战斗系统 - 真实UI示例版 */}
+                      <section className="relative z-10">
+                          <h3 className="text-dungeon-gold font-bold text-xl md:text-2xl border-b border-stone-800 pb-3 mb-4 flex items-center gap-2 drop-shadow-md">
+                              <LucideTarget className="text-stone-500" size={24}/> 战斗博弈：无能量，全靠蓝图！
+                          </h3>
+                          <div className="bg-blue-950/10 border border-blue-900/50 p-5 rounded-lg space-y-6 shadow-lg">
+                              <p className="font-bold text-blue-400 text-lg flex items-center gap-2">
+                                  <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-sm">核心机制</span> 行动缓冲区与战术蓝图
+                              </p>
+                              <p className="text-stone-300 text-sm">打牌<span className="text-dungeon-gold font-bold">不消耗任何能量</span>。每次出牌，卡牌会按顺序填入下方的<span className="text-white font-bold bg-stone-800 px-1 rounded">行动缓冲区(5格)</span>。单独打出的卡牌(除走位卡外)无效，必须根据右上角的<span className="text-yellow-400 font-bold">【战术蓝图】</span>进行精确的排列组合！</p>
+                              
+                              {/* 模拟蓝图与缓冲区互动示例 */}
+                              <div className="bg-black/60 p-4 rounded-lg border border-stone-800 flex flex-col md:flex-row items-center justify-center gap-8">
+                                  {/* 左侧：蓝图 */}
+                                  <div className="flex flex-col items-center gap-2">
+                                      <div className="text-[10px] text-stone-500 font-mono tracking-widest">目标蓝图：重击回路</div>
+                                      <div className="flex flex-col items-center bg-stone-900 border border-stone-700 p-3 rounded-lg shadow-md w-32 relative overflow-hidden">
+                                          <div className="absolute inset-0 bg-dungeon-gold/5"></div>
+                                          <span className="text-xs font-bold text-stone-200 relative z-10 mb-2">重击回路</span>
+                                          <div className="flex gap-1 mb-2 relative z-10">
+                                              <div className="w-5 h-5 bg-red-950 border border-red-500 rounded-sm"></div>
+                                              <div className="w-5 h-5 bg-red-950 border border-red-500 rounded-sm"></div>
+                                              <div className="w-5 h-5 bg-blue-950 border border-blue-500 rounded-sm"></div>
+                                          </div>
+                                          <div className="text-[10px] text-stone-400 text-center relative z-10">造成 12 伤害</div>
+                                      </div>
+                                  </div>
+
+                                  {/* 中间：箭头 */}
+                                  <div className="text-stone-600 rotate-90 md:rotate-0 text-2xl font-bold animate-pulse">➔</div>
+
+                                  {/* 右侧：缓冲区演示 */}
+                                  <div className="flex flex-col items-center gap-2">
+                                      <div className="text-[10px] text-stone-500 font-mono tracking-widest">你的缓冲区 (5槽位)</div>
+                                      <div className="flex gap-2 p-4 bg-stone-950 border border-stone-700 rounded-lg shadow-inner">
+                                          {/* 已填充匹配 */}
+                                          <div className="w-10 h-14 bg-red-900/80 border-2 border-red-500 rounded flex items-center justify-center text-red-200 font-bold shadow-[0_0_10px_rgba(239,68,68,0.5)]">攻</div>
+                                          <div className="w-10 h-14 bg-red-900/80 border-2 border-red-500 rounded flex items-center justify-center text-red-200 font-bold shadow-[0_0_10px_rgba(239,68,68,0.5)]">攻</div>
+                                          <div className="w-10 h-14 bg-blue-900/80 border-2 border-blue-500 rounded flex items-center justify-center text-blue-200 font-bold shadow-[0_0_10px_rgba(59,130,246,0.5)]">防</div>
+                                          {/* 空置 */}
+                                          <div className="w-10 h-14 bg-black border border-stone-700 border-dashed rounded flex items-center justify-center text-stone-600 text-xs">空</div>
+                                          <div className="w-10 h-14 bg-black border border-stone-700 border-dashed rounded flex items-center justify-center text-stone-600 text-xs">空</div>
+                                      </div>
+                                      <div className="text-[10px] text-green-400 font-bold animate-pulse mt-1">✔ 完美匹配！触发效果并清空前3格！</div>
+                                  </div>
+                              </div>
+
+                              <div className="bg-red-950/40 border border-red-900/50 p-3 rounded flex items-start gap-2">
+                                  <span className="text-red-500 font-bold">⚠️ 致命惩罚 (OVERLOAD)：</span>
+                                  <span className="text-sm text-red-200/80">如果一直乱打牌导致 <span className="font-bold text-white">5个槽位全满</span> 且无法组成任何蓝图，将引发【系统过载】！你将受到直接物理反噬伤害，并被强制清空所有槽位。</span>
+                              </div>
+                          </div>
+                      </section>
+
+                      {/* 4. 敌方意图与素体技能 - 真实UI呈现 */}
+                      <section className="relative z-10">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                              {/* 敌方意图模型 */}
+                              <div className="bg-stone-900/40 border border-stone-700/50 p-5 rounded-lg shadow-md flex flex-col">
+                                  <h4 className="text-stone-300 font-bold text-lg mb-4 flex items-center gap-2"><LucideSkull className="text-stone-500" size={20}/> 畸变体意图判读</h4>
+                                  <p className="text-xs text-stone-400 mb-4">怪物头顶会展示其本回合的动作，请针对性地激活防御蓝图进行反制。</p>
+                                  <div className="space-y-3 flex-1 flex flex-col justify-center">
+                                      <div className="flex items-center gap-3"><span className="text-red-100 font-bold font-mono text-xs w-20 text-center bg-red-900 border border-red-700 rounded py-1 shadow-md">ATTACK</span> <span className="text-sm text-stone-300">造成直接伤害，记得叠甲。</span></div>
+                                      <div className="flex items-center gap-3"><span className="text-blue-100 font-bold font-mono text-xs w-20 text-center bg-blue-900 border border-blue-700 rounded py-1 shadow-md">BUFF</span> <span className="text-sm text-stone-300">提升其护甲效能或下回合攻击力。</span></div>
+                                      <div className="flex items-center gap-3"><span className="text-purple-100 font-bold font-mono text-xs w-20 text-center bg-purple-900 border border-purple-700 rounded py-1 shadow-md">DEBUFF</span> <span className="text-sm text-stone-300">削弱护甲，或将废牌塞入你的牌库。</span></div>
+                                      <div className="flex items-center gap-3"><span className="text-green-100 font-bold font-mono text-xs w-20 text-center bg-green-900 border border-green-700 rounded py-1 shadow-md">HEAL</span> <span className="text-sm text-stone-300">恢复生命值。必须爆发输出打断。</span></div>
+                                      <div className="flex items-center gap-3"><span className="text-yellow-100 font-bold font-mono text-xs w-20 text-center bg-yellow-700 border border-yellow-500 rounded py-1 shadow-md animate-pulse">FLEE</span> <span className="text-sm text-stone-300">准备逃跑！不击杀则拿不到战利品！</span></div>
+                                  </div>
+                              </div>
+                              
+                              {/* 素体技能模型 */}
+                              <div className="bg-purple-950/10 border border-purple-900/30 p-5 rounded-lg shadow-md flex flex-col">
+                                  <h4 className="text-purple-400 font-bold text-lg mb-4 flex items-center gap-2"><LucideZap size={20}/> 战斗回路 (特化技能)</h4>
+                                  <p className="text-xs text-stone-400 mb-4">蓝色品质及以上的素体在升级后，将解锁专属作战回路。</p>
+                                  <div className="space-y-4 flex-1">
+                                      {/* 被动技能卡片 UI */}
+                                      <div className="bg-black/60 p-3 rounded-lg border-l-4 border-l-stone-500 border-y border-r border-stone-800 shadow-inner flex flex-col gap-1 relative overflow-hidden">
+                                          <div className="absolute right-[-10px] top-[-10px] opacity-10"><LucideCpu size={60}/></div>
+                                          <div className="flex justify-between items-center relative z-10">
+                                              <span className="text-sm font-bold text-stone-200">全覆盖装甲</span>
+                                              <span className="text-[9px] font-bold font-mono text-stone-400 bg-stone-900 px-1.5 py-0.5 rounded border border-stone-700">被动 (Lv.2 解锁)</span>
+                                          </div>
+                                          <div className="text-xs text-stone-400 mt-1 relative z-10">全程生效。战斗开始时，直接获得 10 点护甲。</div>
+                                      </div>
+                                      {/* 主动技能卡片 UI */}
+                                      <div className="bg-black/60 p-3 rounded-lg border-l-4 border-l-dungeon-gold border-y border-r border-stone-800 shadow-inner flex flex-col gap-1 relative overflow-hidden group">
+                                          <div className="absolute inset-0 bg-dungeon-gold/5"></div>
+                                          <div className="absolute right-[-10px] top-[-10px] opacity-10 text-dungeon-gold"><LucideZap size={60}/></div>
+                                          <div className="flex justify-between items-center relative z-10">
+                                              <span className="text-sm font-bold text-dungeon-gold">极限超载 (蓄能)</span>
+                                              <span className="text-[9px] font-bold font-mono text-yellow-500 bg-yellow-950 px-1.5 py-0.5 rounded border border-yellow-700/50 shadow">主动 (Lv.4 解锁)</span>
+                                          </div>
+                                          <div className="text-xs text-stone-400 mt-1 relative z-10">打出特定卡牌可蓄能。满能后点击施放：清除所有异常状态并恢复30%生命值。</div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </section>
+                      
+                      <div className="text-center text-stone-600 font-serif italic pt-8 pb-4 border-t border-stone-800/50 relative z-10">
+                          "祝你好运，指挥官。深渊在看着你。"
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }
+
+
+

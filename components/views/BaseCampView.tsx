@@ -444,7 +444,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                   <div className="flex items-center gap-4 relative z-10">
                       <div className="flex items-center gap-3 bg-dungeon-gold/10 px-5 py-2.5 rounded-lg border border-dungeon-gold/30 shadow-inner">
                           <LucideCoins className="text-dungeon-gold drop-shadow-[0_0_10px_rgba(202,138,4,0.8)] animate-pulse" size={28} />
-                          <span className="text-2xl font-bold font-mono text-stone-200 tracking-wider">{metaState.resources[ResourceType.GOLD] || 0} <span className="text-sm text-stone-500 ml-1">₮</span></span>
+                          <span className="text-2xl font-bold font-mono text-stone-200 tracking-wider">{(metaState.resources[ResourceType.GOLD] || 0).toLocaleString()} <span className="text-sm text-stone-500 ml-1">₮</span></span>
                       </div>
                   </div>
 
@@ -521,7 +521,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
 
                                           <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-4 border-t md:border-t-0 md:border-l border-stone-800/80 pt-4 md:pt-0 md:pl-6 min-w-[140px] relative z-10">
                                               <div className="text-dungeon-gold font-bold font-mono text-lg flex items-center gap-1.5 drop-shadow-[0_0_5px_rgba(202,138,4,0.5)]">
-                                                  <LucideCoins size={18} /> + {bounty.reward} 
+                                                  <LucideCoins size={18} /> + {bounty.reward.toLocaleString()} 
                                               </div>
                                               {/* 核心优化：悬赏交付按钮的极致质感 */}
                                               <button 
@@ -568,7 +568,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
                                           
                                           <div className="flex items-center justify-between mt-4 pt-3 border-t border-stone-800/80">
                                               <div className="flex items-center gap-1.5 text-dungeon-red font-bold font-mono bg-red-950/30 px-3 py-1 rounded border border-red-900/50">
-                                                  <LucideCoins size={14}/> {item.buyPrice}
+                                                  <LucideCoins size={14}/> {item.buyPrice.toLocaleString()}
                                               </div>
                                               {/* 核心优化：购买按钮的样式重构，与交付按钮手感统一 */}
                                               <button 
@@ -1215,7 +1215,7 @@ export const BaseCampView: React.FC<BaseCampViewProps> = ({ metaState, setMetaSt
           </div>
           <div className="flex gap-3">
              <div className="flex items-center gap-1 text-stone-400 text-xs">
-                 <LucideCoins size={12} className="text-yellow-600" /> {metaState.resources[ResourceType.GOLD]}
+                 <LucideCoins size={12} className="text-yellow-600" /> {(metaState.resources[ResourceType.GOLD] || 0).toLocaleString()}
              </div>
              <div className="flex items-center gap-1 text-stone-400 text-xs">
                  <LucideZap size={12} className="text-blue-500" /> {metaState.resources[ResourceType.TECH_SCRAP]}
